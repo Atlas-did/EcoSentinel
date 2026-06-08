@@ -1,0 +1,73 @@
+
+# 运行配置（唯一配置源；AI_API_KEY 仍建议用环境变量注入）
+
+app:
+  use_hardware: true
+  run_label: saving  # baseline | saving
+
+serial:
+  port: COM4
+  baudrate: 115200
+  timeout_s: 2.0
+
+thresholds:
+  illuminance_min: 300.0
+
+ai:
+  enabled: false
+  control_mode: suggest   # suggest | execute
+  model: gpt-4o-mini
+  api_base: https://api.openai.com/v1
+
+  # DeepSeek Demo（不在文件里写 key；用环境变量 DEEPSEEK_API_KEY 注入）
+  # model: deepseek-chat
+  # api_base: https://api.deepseek.com/v1
+  # candidates:
+  #   - id: ds_t02
+  #     model: deepseek-chat
+  #     api_base: https://api.deepseek.com/v1
+  #     temperature: 0.2
+  #     max_tokens: 512
+  #     timeout_s: 15.0
+  #     max_retries: 1
+  #   - id: ds_t07
+  #     model: deepseek-chat
+  #     api_base: https://api.deepseek.com/v1
+  #     temperature: 0.7
+  #     max_tokens: 512
+  #     timeout_s: 15.0
+  #     max_retries: 1
+
+  # 参数候选池（用于多层 API 调参 + 失败回退）。为空则使用上面的 model/api_base 默认值。
+  # candidates:
+  #   - id: c1
+  #     temperature: 0.2
+  #     max_tokens: 512
+  #     timeout_s: 10.0
+  #     max_retries: 2
+  #   - id: c2
+  #     temperature: 0.7
+  #     max_tokens: 512
+  #     timeout_s: 15.0
+  #     max_retries: 3
+
+  exploration_rate: 0.2
+  enable_local_fallback: true
+  fallback_enable_relay3: true
+  fallback_enable_curtain: true
+
+control:
+  enable_rule_control: true
+  actuate_min_interval_s: 2.0
+  safe_mode_stale_s: 30.0
+  max_ai_cmds_per_cycle: 5
+
+self_healing:
+  enabled: true
+  auto_i2c_recover: true
+  auto_reset: true
+  action_cooldown_s: 10.0
+  reset_cooldown_s: 120.0
+  max_resets_per_hour: 3
+  require_manual_for_actuator_cutoff: true
+

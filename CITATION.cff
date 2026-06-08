@@ -1,0 +1,17 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+authors:
+  - family-names: "Wu"
+    given-names: "Yifan"
+title: "EcoSentinel: Smart Environmental Monitoring & AI Energy-Saving System"
+version: 1.0.0
+date-released: 2026-06-08
+url: "https://github.com/Atlas-did/ecosentinel"
+keywords:
+  - environmental-monitoring
+  - energy-saving
+  - edge-computing
+  - iot
+  - esp32
+  - ai-control
+  - digital-twin

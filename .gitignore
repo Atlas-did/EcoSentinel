@@ -1,0 +1,52 @@
+# ── Python ──────────────────────────────────────────
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+*.egg
+
+# ── Environment & secrets ───────────────────────────
+.env
+ai_workspace/von.env
+*.pem
+*.key
+config.local.*
+
+# ── Runtime artifacts ───────────────────────────────
+logs/
+*.log
+*.lock
+
+# ── Node / React ────────────────────────────────────
+app/node_modules/
+app/dist/
+app/.vite/
+
+# ── OS & IDE ────────────────────────────────────────
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ── Test & coverage ─────────────────────────────────
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# ── Internal / drafts ───────────────────────────────
+TODO*
+*.draft.*
+drafts/
+internal/
+
+# ── Large archives ──────────────────────────────────
+*.zip
+*.tar.gz
+*.7z

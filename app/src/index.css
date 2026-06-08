@@ -1,0 +1,223 @@
+/* Google Fonts removed — blocked in China, causes white screen.
+   Using system font stack with Chinese fallbacks instead. */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 216 50% 4%;
+    --foreground: 213 100% 95%;
+    --card: 216 50% 6%;
+    --card-foreground: 213 100% 95%;
+    --popover: 216 50% 6%;
+    --popover-foreground: 213 100% 95%;
+    --primary: 199 89% 48%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 216 33% 12%;
+    --secondary-foreground: 213 100% 95%;
+    --muted: 216 33% 12%;
+    --muted-foreground: 215 20% 50%;
+    --accent: 216 33% 12%;
+    --accent-foreground: 213 100% 95%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 216 33% 14%;
+    --input: 216 33% 14%;
+    --ring: 199 89% 48%;
+    --radius: 0.625rem;
+    --sidebar-background: 216 50% 6%;
+    --sidebar-foreground: 213 100% 95%;
+    --sidebar-primary: 199 89% 48%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 216 33% 12%;
+    --sidebar-accent-foreground: 213 100% 95%;
+    --sidebar-border: 216 33% 14%;
+    --sidebar-ring: 199 89% 48%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  
+  html {
+    scroll-behavior: smooth;
+  }
+  
+  body {
+    @apply bg-[#020c1b] text-foreground antialiased;
+    font-family: 'PingFang SC', 'Microsoft YaHei', 'Hiragino Sans GB', system-ui, -apple-system, sans-serif;
+  }
+
+  /* Monospace font for data */
+  code, pre, .font-mono {
+    font-family: 'Cascadia Code', 'Fira Code', 'Consolas', 'Courier New', monospace;
+  }
+
+  /* Custom scrollbar */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  
+  ::-webkit-scrollbar-track {
+    background: #0a192f;
+  }
+  
+  ::-webkit-scrollbar-thumb {
+    background: #1e3a5f;
+    border-radius: 3px;
+  }
+  
+  ::-webkit-scrollbar-thumb:hover {
+    background: #2a4a6f;
+  }
+
+  /* Selection color */
+  ::selection {
+    background: rgba(14, 165, 233, 0.3);
+    color: #e6f1ff;
+  }
+}
+
+@layer components {
+  /* Glassmorphism card */
+  .glass-card {
+    @apply bg-slate-900/60 backdrop-blur-md border border-slate-800/60 rounded-2xl;
+  }
+
+  /* Neon glow effect */
+  .neon-glow {
+    box-shadow: 0 0 20px rgba(14, 165, 233, 0.15), 0 0 40px rgba(14, 165, 233, 0.05);
+  }
+
+  /* Status pulse animation */
+  .status-pulse {
+    animation: statusPulse 2s ease-in-out infinite;
+  }
+
+  @keyframes statusPulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+
+  /* Data flow animation for hardware lines */
+  .data-flow {
+    animation: dataFlow 3s linear infinite;
+  }
+
+  @keyframes dataFlow {
+    0% { stroke-dashoffset: 100; }
+    100% { stroke-dashoffset: 0; }
+  }
+
+  /* Terminal blink */
+  .terminal-blink {
+    animation: terminalBlink 1s step-end infinite;
+  }
+
+  @keyframes terminalBlink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0; }
+  }
+
+  /* Card hover lift */
+  .card-lift {
+    @apply transition-all duration-300;
+  }
+  
+  .card-lift:hover {
+    @apply -translate-y-0.5;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.3);
+  }
+}
+
+@layer utilities {
+  /* Text gradient */
+  .text-gradient {
+    @apply bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 to-emerald-400;
+  }
+
+  /* Border gradient */
+  .border-gradient {
+    border-image: linear-gradient(to right, rgba(14, 165, 233, 0.3), rgba(16, 185, 129, 0.3)) 1;
+  }
+}
+
+/* Range input styling */
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  cursor: pointer;
+}
+
+input[type="range"]::-webkit-slider-track {
+  height: 6px;
+  background: #1e293b;
+  border-radius: 3px;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  background: #0ea5e9;
+  border-radius: 50%;
+  margin-top: -5px;
+  border: 2px solid #0c4a6e;
+  box-shadow: 0 0 8px rgba(14, 165, 233, 0.4);
+}
+
+input[type="range"]::-moz-range-track {
+  height: 6px;
+  background: #1e293b;
+  border-radius: 3px;
+}
+
+input[type="range"]::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  background: #0ea5e9;
+  border-radius: 50%;
+  border: 2px solid #0c4a6e;
+  box-shadow: 0 0 8px rgba(14, 165, 233, 0.4);
+}
+
+/* Checkbox styling */
+input[type="checkbox"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border: 1px solid #475569;
+  border-radius: 3px;
+  background: #0f172a;
+  cursor: pointer;
+  position: relative;
+}
+
+input[type="checkbox"]:checked {
+  background: #0ea5e9;
+  border-color: #0ea5e9;
+}
+
+input[type="checkbox"]:checked::after {
+  content: '';
+  position: absolute;
+  left: 4px;
+  top: 1px;
+  width: 4px;
+  height: 8px;
+  border: solid white;
+  border-width: 0 1.5px 1.5px 0;
+  transform: rotate(45deg);
+}
+
+/* Recharts tooltip override */
+.recharts-tooltip-wrapper {
+  outline: none !important;
+}

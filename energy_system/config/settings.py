@@ -18,9 +18,12 @@ COMFORT_ILLUMINANCE_MAX = 750.0   # [lux]，舒适上限
 
 # 碳排放因子（中国区域电网 2022 年平均，来源：生态环境部）
 CARBON_FACTOR = 0.5708  # [kgCO2/kWh]
+CARBON_FACTOR_SOURCE = "生态环境部 中国区域电网 2022 平均"
+CARBON_FACTOR_VERSION = "2022"
 
 # 默认电价（用于看板与日汇总估算），可被运行时配置覆盖
 PRICE_CNY_PER_KWH = 0.80  # 元 / kWh
+PRICE_SOURCE = "demo_default"
 
 # 电池默认参数（仅作演示用，可通过环境变量或 config 覆盖）
 BATTERY_CAPACITY_MAH_DEFAULT = 10000

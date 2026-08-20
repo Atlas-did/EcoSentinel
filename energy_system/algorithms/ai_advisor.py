@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-import json
 import logging
 import random
 import time
 from dataclasses import dataclass
 from typing import Any
 
+from energy_system.ai import fallback_policy, prompt_builder, response_parser
 from energy_system.config.runtime_config import AIConfig, AIRequestCandidate
 
 @dataclass
@@ -72,43 +72,10 @@ class AIAdvisor:
 
     @staticmethod
     def _sanitize_prompt_value(value: Any) -> Any:
-        if isinstance(value, (str, int, float, bool)) or value is None:
-            return value
-        if isinstance(value, list):
-            return [AIAdvisor._sanitize_prompt_value(v) for v in value[:32]]
-        if isinstance(value, tuple):
-            return [AIAdvisor._sanitize_prompt_value(v) for v in list(value)[:32]]
-        if isinstance(value, dict):
-            out: dict[str, Any] = {}
-            for k, v in list(value.items())[:32]:
-                out[str(k)] = AIAdvisor._sanitize_prompt_value(v)
-            return out
-        return str(value)
+        return prompt_builder.sanitize_prompt_value(value)
 
     def _prompt_sensor_payload(self, sensor_data: dict[str, Any]) -> dict[str, Any]:
-        allowed_keys = {
-            "temperature",
-            "humidity",
-            "illuminance",
-            "indoor_lux",
-            "eco2",
-            "tvoc",
-            "power_w",
-            "energy_wh",
-            "solar_power_w",
-            "solar_energy_wh",
-            "soc_percent",
-            "comfort_score",
-            "relays",
-            "curtain_steps",
-            "safe_mode",
-            "safe_reason",
-        }
-        safe: dict[str, Any] = {}
-        for key in allowed_keys:
-            if key in sensor_data:
-                safe[key] = self._sanitize_prompt_value(sensor_data.get(key))
-        return safe
+        return prompt_builder.prompt_sensor_payload(sensor_data)
 
     def _update_stats(self, candidate_id: str, score: float | None, ok: bool) -> None:
         st = self._stats.get(candidate_id) or _CandidateStats()
@@ -189,64 +156,15 @@ class AIAdvisor:
         return max(pool, key=key)
 
     def _build_prompt(self, sensor_data: dict[str, Any]) -> str:
-        safe_sensor_data = self._prompt_sensor_payload(sensor_data)
-        return (
-            "Current indoor environment data: "
-            + json.dumps(safe_sensor_data, ensure_ascii=False)
-            + "\nGoals: Maximize comfort while minimizing energy consumption.\n\n"
-            + "Controls available:\n"
-            + "- RELAY 1 (Air Conditioner)\n"
-            + "- RELAY 2 (Living Room Lights)\n"
-            + "- RELAY 3 (Ventilation/Fresh Air)\n"
-            + "- CURTAIN (OPEN/CLOSE/STOP)\n\n"
-            + "Return a JSON object with:\n"
-            + "1. 'reasoning': concise explanation.\n"
-            + "2. 'commands': a list of raw ESP32 commands to execute.\n"
-            + "Example: {\"reasoning\":\"High CO2 detected.\",\"commands\":[\"RELAY 3 1\"]}"
-        )
+        return prompt_builder.build_prompt(sensor_data)
 
     @staticmethod
     def _provider_tag(api_base: str) -> str:
-        b = (api_base or "").lower()
-        if "deepseek" in b:
-            return "deepseek"
-        if "openai" in b:
-            return "openai"
-        return "openai_compat"
+        return response_parser.provider_tag(api_base)
 
     @staticmethod
     def _parse_json_object(content: str) -> dict[str, Any] | None:
-        if not content:
-            return None
-        text = content.strip()
-        # Strip common markdown fences
-        if text.startswith("```"):
-            lines = text.splitlines()
-            # drop first fence line
-            if lines:
-                lines = lines[1:]
-            # drop last fence line if present
-            if lines and lines[-1].strip().startswith("```"):
-                lines = lines[:-1]
-            text = "\n".join(lines).strip()
-
-        try:
-            obj = json.loads(text)
-            return obj if isinstance(obj, dict) else None
-        except Exception:
-            pass
-
-        # Best-effort: find a JSON object substring
-        try:
-            start = text.find("{")
-            end = text.rfind("}")
-            if 0 <= start < end:
-                obj = json.loads(text[start : end + 1])
-                return obj if isinstance(obj, dict) else None
-        except Exception:
-            return None
-
-        return None
+        return response_parser.parse_json_object(content)
 
     def _call_cloud(self, candidate: AIRequestCandidate, prompt: str) -> tuple[dict[str, Any] | None, str | None]:
         if not self.client or not self._openai:
@@ -308,41 +226,12 @@ class AIAdvisor:
         return None, f"cloud_error:{last_err}"
 
     def _local_fallback(self, sensor_data: dict[str, Any]) -> dict[str, Any]:
-        cmds: list[str] = []
-        reasons: list[str] = []
-
-        eco2 = sensor_data.get("eco2")
-        tvoc = sensor_data.get("tvoc")
-        temp = sensor_data.get("temperature")
-        lux = sensor_data.get("illuminance")
-        hour = datetime_now_hour()
-
-        if self.cfg.fallback_enable_relay3:
-            # Simple ventilation policy
-            if isinstance(eco2, (int, float)) and float(eco2) >= 1000:
-                cmds.append("RELAY 3 1")
-                reasons.append("eco2_high")
-            elif isinstance(tvoc, (int, float)) and float(tvoc) >= 300:
-                cmds.append("RELAY 3 1")
-                reasons.append("tvoc_high")
-            elif isinstance(eco2, (int, float)) and float(eco2) <= 650:
-                cmds.append("RELAY 3 0")
-                reasons.append("eco2_normal")
-
-        if self.cfg.fallback_enable_curtain:
-            # Daytime curtain heuristic: reduce solar gain when hot & bright.
-            if isinstance(temp, (int, float)) and isinstance(lux, (int, float)):
-                if 9 <= hour < 18 and float(temp) >= 27.5 and float(lux) >= 800:
-                    cmds.append("CURTAIN CLOSE")
-                    reasons.append("hot_and_bright")
-                elif 9 <= hour < 18 and float(lux) <= 200:
-                    cmds.append("CURTAIN OPEN")
-                    reasons.append("too_dark")
-
-        return {
-            "reasoning": "local_fallback:" + ("/".join(reasons) if reasons else "no_action"),
-            "commands": cmds,
-        }
+        return fallback_policy.local_fallback(
+            sensor_data,
+            enable_relay3=self.cfg.fallback_enable_relay3,
+            enable_curtain=self.cfg.fallback_enable_curtain,
+            hour=datetime_now_hour(),
+        )
 
     def get_action(self, sensor_data: dict[str, Any]) -> dict[str, Any]:
         """

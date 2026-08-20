@@ -6,13 +6,13 @@ from energy_system.algorithms.comfort_eval import evaluate_comfort
 from typing import Any
 
 class Simulator:
-    def __init__(self, mode="baseline"):
+    def __init__(self, mode="baseline", seed: int = 42):
         self.mode = mode
         self.dt = settings.TIME_STEP
         self.model = ThermalModel()
         self.controller = RuleBasedController(mode=mode)
         # 每个 Simulator 实例持有独立随机游走状态，避免互相干扰
-        self.env_gen = EnvironmentGenerator(seed=42)
+        self.env_gen = EnvironmentGenerator(seed=seed)
         
     def run_simulation(self, days=3):
         total_time_s = days * 24 * 3600

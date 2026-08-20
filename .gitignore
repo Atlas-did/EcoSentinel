@@ -17,6 +17,7 @@ config.local.*
 
 # ── Runtime artifacts ───────────────────────────────
 logs/
+results/
 *.log
 *.lock
 
@@ -45,6 +46,9 @@ TODO*
 *.draft.*
 drafts/
 internal/
+
+# Internal Chinese planning & competition materials (kept out of the open-source repo)
+EcoSentinel_*
 
 # ── Large archives ──────────────────────────────────
 *.zip

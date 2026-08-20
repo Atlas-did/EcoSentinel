@@ -1,0 +1,86 @@
+name: CI
+
+# Lightweight quality gate (plan §11.4): install deps → unit tests → compile
+# check → simulation smoke test, plus the React lint/build and a secret scan.
+# Deliberately kept minimal so environment friction does not push developers to
+# bypass the gate; heavier steps (coverage thresholds, OpenAPI diff, firmware
+# build matrix) are added later.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  python-tests:
+    name: Python tests & simulation smoke test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run unit & contract tests
+        run: python -m pytest tests -q
+
+      - name: Compile check (catch syntax / import errors)
+        run: python -m compileall -q energy_system main.py api_server.py dashboard.py
+
+      - name: Simulation smoke test (deterministic regression)
+        run: python -m energy_system.simulation.compare
+
+  frontend:
+    name: React lint & build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build (typecheck + bundle)
+        run: npm run build
+
+  secret-scan:
+    name: Secret & sensitive-file scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Gitleaks scan
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_ENABLE_COMMENTS: "false"

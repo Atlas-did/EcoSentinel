@@ -343,4 +343,24 @@ def load_app_config(
 
     cfg = replace(cfg, api=ApiConfig(cors_origins=cors_origins, allow_credentials=allow_credentials))
 
+    # -- cross-field validation --
+    # reset cooldown must never be shorter than the general action cooldown.
+    if cfg.self_healing.reset_cooldown_s < cfg.self_healing.action_cooldown_s:
+        warnings.append(
+            "self_healing.reset_cooldown_s must be >= action_cooldown_s; "
+            "raising reset_cooldown_s to action_cooldown_s."
+        )
+        cfg = replace(cfg, self_healing=replace(
+            cfg.self_healing, reset_cooldown_s=cfg.self_healing.action_cooldown_s,
+        ))
+
+    # safe_mode stale threshold must exceed the serial read timeout, otherwise a
+    # single slow read could be misclassified as stale data.
+    if cfg.control.safe_mode_stale_s <= cfg.serial.timeout_s:
+        warnings.append(
+            "control.safe_mode_stale_s should be greater than serial.timeout_s "
+            f"({cfg.control.safe_mode_stale_s}s <= {cfg.serial.timeout_s}s); "
+            "stale detection may trigger on a single slow read."
+        )
+
     return cfg, warnings

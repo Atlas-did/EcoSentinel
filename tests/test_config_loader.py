@@ -134,6 +134,22 @@ api:
         self.assertNotIn("*", cfg.api.cors_origins)
         self.assertFalse(cfg.api.allow_credentials)
 
+    def test_reset_cooldown_raised_to_action_cooldown(self):
+        with tempfile.TemporaryDirectory() as td:
+            p = Path(td) / "params.yaml"
+            p.write_text(
+                """
+self_healing:
+  action_cooldown_s: 60
+  reset_cooldown_s: 30
+""".lstrip(),
+                encoding="utf-8",
+            )
+            cfg, warnings = load_app_config(p)
+
+        self.assertEqual(cfg.self_healing.reset_cooldown_s, 60.0)
+        self.assertTrue(any("reset_cooldown_s" in w for w in warnings))
+
 
 if __name__ == "__main__":
     unittest.main()

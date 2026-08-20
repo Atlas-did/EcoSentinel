@@ -8,6 +8,7 @@ from energy_system.core.models.commands import (
     DeviceCommand,
     RelayCommand,
 )
+from energy_system.core.models.telemetry import SampleQuality, TelemetrySample
 
 __all__ = [
     "BuzzerCommand",
@@ -16,4 +17,6 @@ __all__ = [
     "CurtainCommand",
     "DeviceCommand",
     "RelayCommand",
+    "SampleQuality",
+    "TelemetrySample",
 ]

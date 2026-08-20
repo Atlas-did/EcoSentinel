@@ -1,4 +1,4 @@
-"""List available serial ports on this PC.
+r"""List available serial ports on this PC.
 
 Usage (PowerShell):
   .\.venv\Scripts\python.exe scripts\list_serial_ports.py

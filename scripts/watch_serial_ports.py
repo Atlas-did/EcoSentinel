@@ -1,4 +1,4 @@
-"""Watch serial ports and report when ports appear/disappear.
+r"""Watch serial ports and report when ports appear/disappear.
 
 Usage (PowerShell):
   .\.venv\Scripts\python.exe scripts\watch_serial_ports.py

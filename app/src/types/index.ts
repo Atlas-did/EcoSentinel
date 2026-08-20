@@ -1,5 +1,6 @@
 // Real-time sensor data snapshot
 export interface SensorSnapshot {
+  schema_version?: string;
   timestamp: string;
   temperature?: number;
   humidity?: number;
@@ -31,7 +32,11 @@ export interface AICandidate {
   commands: string[];
   risk?: string;
   createdAt: string;
+  executed?: boolean; // whether the command was actually sent to hardware
 }
+
+// AI suggestion lifecycle: "model returned" vs "device executed" must stay distinct.
+export type AICommandStatus = 'suggestion' | 'accepted' | 'rejected' | 'executed';
 
 // Self-healing / resilience event
 export interface ResilienceEvent {
@@ -45,11 +50,18 @@ export interface ResilienceEvent {
 
 // Energy summary data
 export interface EnergySummary {
+  schema_version?: string;
   baseline_kwh: number;
   saving_kwh: number;
   saving_rate: number;
   cost_saved_cny: number;
   carbon_reduced_kg: number;
+  energy_saved_kwh?: number;
+  carbon_factor?: number;
+  carbon_factor_source?: string | null;
+  carbon_factor_version?: string | null;
+  electricity_price_cny_per_kwh?: number;
+  price_source?: string | null;
 }
 
 // Chart data point
@@ -68,6 +80,7 @@ export interface ChartDataPoint {
 
 // System health status
 export interface HealthStatus {
+  schema_version?: string;
   serial_connected: boolean;
   last_heartbeat: string;
   sampling_rate_hz: number;
@@ -75,6 +88,7 @@ export interface HealthStatus {
   retry_count: number;
   self_healing_enabled: boolean;
   stale_detected: boolean;
+  corrupt_records?: number;
 }
 
 // Simulation parameters

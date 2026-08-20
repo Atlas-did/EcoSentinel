@@ -19,7 +19,7 @@ from energy_system.api.schemas import (
     Snapshot,
     now_iso,
 )
-from energy_system.config import settings
+from energy_system.domain.metrics import EnergyAccountingConfig
 from energy_system.persistence.jsonl_repository import JsonlTelemetryRepository
 
 # Time-window mapping for the chart endpoint.
@@ -112,19 +112,20 @@ class ApiServices:
         saved = base_kwh - save_kwh
         rate = (saved / base_kwh * 100.0) if base_kwh > 0 else 0.0
 
-        carbon_factor = float(getattr(settings, "CARBON_FACTOR", 0.5708))
-        price = float(getattr(settings, "PRICE_CNY_PER_KWH", 0.80))
+        acct = EnergyAccountingConfig.from_settings()
 
         return EnergySummary(
             baseline_kwh=round(base_kwh, 2),
             saving_kwh=round(save_kwh, 2),
             saving_rate=round(rate, 1),
             energy_saved_kwh=round(saved, 2),
-            cost_saved_cny=round(saved * price, 2),
-            carbon_reduced_kg=round(saved * carbon_factor, 2),
-            carbon_factor=carbon_factor,
-            carbon_factor_source=getattr(settings, "CARBON_FACTOR_SOURCE", None),
-            electricity_price_cny_per_kwh=price,
+            cost_saved_cny=round(saved * acct.electricity_price_cny_per_kwh, 2),
+            carbon_reduced_kg=round(saved * acct.carbon_factor, 2),
+            carbon_factor=acct.carbon_factor,
+            carbon_factor_source=acct.carbon_factor_source,
+            carbon_factor_version=acct.carbon_factor_version,
+            electricity_price_cny_per_kwh=acct.electricity_price_cny_per_kwh,
+            price_source=acct.price_source,
         )
 
     def _kwh_from_daily(self, label: str) -> float:

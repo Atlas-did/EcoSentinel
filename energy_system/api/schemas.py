@@ -88,7 +88,9 @@ class EnergySummary(BaseModel):
     carbon_reduced_kg: float = 0.0
     carbon_factor: float = 0.0  # additive: kgCO2/kWh
     carbon_factor_source: str | None = None  # additive
+    carbon_factor_version: str | None = None  # additive: provenance version
     electricity_price_cny_per_kwh: float = 0.0  # additive
+    price_source: str | None = None  # additive: provenance for price
 
 
 class Ping(BaseModel):

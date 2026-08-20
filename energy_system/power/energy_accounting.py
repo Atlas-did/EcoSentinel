@@ -7,6 +7,10 @@ class EnergyStats:
     power_w: float | None = None
     energy_wh: float = 0.0
     last_ts: float | None = None
+    # Quality flags recorded on the last sample (never silently swallowed):
+    #   timestamp_regression — the sample timestamp moved backwards.
+    #   large_interval       — the gap between samples exceeded max_interval_s.
+    quality_warnings: tuple[str, ...] = ()
 
 
 @dataclass
@@ -33,11 +37,13 @@ class EnergyAccumulator:
         pwr_mw_key: str = "pwr_mw",
         bus_v_key: str = "bus_v",
         current_ma_key: str = "current_ma",
+        max_interval_s: float | None = None,
     ):
         self._stats = EnergyStats()
         self._pwr_mw_key = pwr_mw_key
         self._bus_v_key = bus_v_key
         self._current_ma_key = current_ma_key
+        self._max_interval_s = max_interval_s
 
     def estimate_power_w(self, sample: dict) -> float | None:
         pwr_mw = sample.get(self._pwr_mw_key)
@@ -54,13 +60,22 @@ class EnergyAccumulator:
     def update(self, sample: dict, ts: float | None = None) -> EnergyStats:
         now = float(ts if ts is not None else time.time())
         power_w = self.estimate_power_w(sample)
+        warnings: list[str] = []
 
-        if self._stats.last_ts is not None and power_w is not None:
-            dt_s = max(0.0, now - self._stats.last_ts)
-            self._stats.energy_wh += power_w * (dt_s / 3600.0)
+        if self._stats.last_ts is not None:
+            dt_s = now - self._stats.last_ts
+            if dt_s < 0:
+                # Timestamp moved backwards: never accrue negative energy; flag it.
+                warnings.append("timestamp_regression")
+                dt_s = 0.0
+            elif self._max_interval_s is not None and dt_s > self._max_interval_s:
+                warnings.append("large_interval")
+            if power_w is not None:
+                self._stats.energy_wh += power_w * (dt_s / 3600.0)
 
         self._stats.power_w = power_w
         self._stats.last_ts = now
+        self._stats.quality_warnings = tuple(dict.fromkeys(warnings))
         return self._stats
 
     def snapshot(self) -> EnergyStats:

@@ -19,6 +19,8 @@ from pathlib import Path
 
 from energy_system.algorithms.energy_saving import calculate_savings
 from energy_system.config import settings
+from energy_system.domain.metrics import descriptive_stats
+from energy_system.experiments.manifest import ExperimentManifest, config_hash
 from energy_system.simulation.simulator import Simulator
 
 # Fixed parameters that fully describe this experiment. Keep these in one place so
@@ -49,33 +51,52 @@ def run_compare(duration_days: int = DURATION_DAYS, seed: int = SIM_SEED) -> dic
     report = calculate_savings(history_base["total_kwh"], history_save["total_kwh"])
     comfort_base = _comfort_mean(history_base)
     comfort_save = _comfort_mean(history_save)
+    comfort_base_stats = descriptive_stats(history_base.get("comfort") or [])
+    comfort_save_stats = descriptive_stats(history_save.get("comfort") or [])
+
+    experiment_id = f"baseline-{datetime.now().strftime('%Y-%m-%d')}"
+    simulation = {
+        "seed": seed,
+        "dt_seconds": settings.TIME_STEP,
+        "duration_days": duration_days,
+        "initial_temperature_c": INITIAL_TEMP_C,
+        "weather_input_version": "environment_generator_v1",
+        "control_mode": "baseline_vs_saving",
+        "model_params": {
+            "c_air_j_k": settings.C_AIR,
+            "u_wall_w_m2k": settings.U_WALL,
+            "a_wall_m2": settings.A_WALL,
+            "alpha_solar": settings.ALPHA_SOLAR,
+            "a_window_m2": settings.A_WINDOW,
+            "q_people_w": settings.Q_PEOPLE,
+            "q_equip_w": settings.Q_EQUIP,
+            "cop_cooling": settings.COP_COOLING,
+            "cop_heating": settings.COP_HEATING,
+            "q_ac_max_w": settings.Q_AC_MAX,
+            "power_light_max_w": settings.POWER_LIGHT_MAX,
+            "power_light_standby_w": settings.POWER_LIGHT_STANDBY,
+        },
+    }
+    manifest = ExperimentManifest(
+        experiment_id=experiment_id,
+        mode="baseline_vs_saving",
+        started_at=datetime.now().isoformat(),
+        ended_at=datetime.now().isoformat(),
+        device_version="simulator_v1",
+        config_hash=config_hash(simulation),
+        sampling_period_s=float(settings.TIME_STEP),
+        raw_jsonl_path=None,
+        summary_path=None,
+        notes="3-day digital-twin baseline-vs-saving comparison",
+    )
 
     result = {
         "schema_version": SCHEMA_VERSION,
-        "experiment_id": f"baseline-{datetime.now().strftime('%Y-%m-%d')}",
+        "experiment_id": experiment_id,
         "generated_at": datetime.now().isoformat(),
-        "simulation": {
-            "seed": seed,
-            "dt_seconds": settings.TIME_STEP,
-            "duration_days": duration_days,
-            "initial_temperature_c": INITIAL_TEMP_C,
-            "weather_input_version": "environment_generator_v1",
-            "control_mode": "baseline_vs_saving",
-            "model_params": {
-                "c_air_j_k": settings.C_AIR,
-                "u_wall_w_m2k": settings.U_WALL,
-                "a_wall_m2": settings.A_WALL,
-                "alpha_solar": settings.ALPHA_SOLAR,
-                "a_window_m2": settings.A_WINDOW,
-                "q_people_w": settings.Q_PEOPLE,
-                "q_equip_w": settings.Q_EQUIP,
-                "cop_cooling": settings.COP_COOLING,
-                "cop_heating": settings.COP_HEATING,
-                "q_ac_max_w": settings.Q_AC_MAX,
-                "power_light_max_w": settings.POWER_LIGHT_MAX,
-                "power_light_standby_w": settings.POWER_LIGHT_STANDBY,
-            },
-        },
+        "config_hash": manifest.config_hash,
+        "experiment": manifest.to_dict(),
+        "simulation": simulation,
         "results": {
             "baseline_energy_kwh": round(report["baseline_energy_kwh"], 2),
             "saving_energy_kwh": round(report["actual_energy_kwh"], 2),
@@ -84,6 +105,8 @@ def run_compare(duration_days: int = DURATION_DAYS, seed: int = SIM_SEED) -> dic
             "carbon_reduced_kg": round(report["carbon_reduced_kg"], 2),
             "baseline_comfort_mean": round(comfort_base, 3),
             "saving_comfort_mean": round(comfort_save, 3),
+            "baseline_comfort_stats": comfort_base_stats,
+            "saving_comfort_stats": comfort_save_stats,
         },
     }
     return result

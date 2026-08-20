@@ -2,19 +2,18 @@ from __future__ import annotations
 
 import time
 import uuid
-from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Callable
 
 from energy_system.config.runtime_config import AppConfig
-
-
-@dataclass
-class ResilienceAction:
-    name: str  # e.g. I2C_RECOVER, RESET
-    command: str
-    requires_manual: bool = False
-    reason: str | None = None
+from energy_system.resilience import policies
+from energy_system.resilience.models import (
+    ActionStatus,
+    RecoveryEvent,
+    ResilienceAction,
+    ResilienceActionName,
+    ResilienceState,
+)
 
 
 class ResilienceOrchestrator:
@@ -22,6 +21,9 @@ class ResilienceOrchestrator:
 
     Scope (Option B): allow firmware I2C recover + MCU soft reset.
     Dangerous actions (e.g., actuator power cut-off) are intentionally NOT automated.
+
+    The orchestrator only *plans* actions; the caller dispatches them and reports
+    the result back via :meth:`record_action_result`.
     """
 
     def __init__(
@@ -32,9 +34,9 @@ class ResilienceOrchestrator:
         self.config = config
         self._time = time_fn or time.monotonic
 
-        self.breaker_state: str = "CLOSED"  # CLOSED|OPEN
+        self.breaker_state: ResilienceState = ResilienceState.CLOSED
         self.last_incident_id: str | None = None
-        self.last_action: str | None = None
+        self.last_action: ResilienceActionName | None = None
         self.last_action_reason: str | None = None
         self.last_action_ts: float | None = None
 
@@ -46,34 +48,32 @@ class ResilienceOrchestrator:
     def _new_incident_id(self) -> str:
         return datetime.now().strftime("%Y%m%d-%H%M%S-") + uuid.uuid4().hex[:8]
 
-    def _prune_reset_history(self, now: float) -> None:
-        one_hour_ago = now - 3600.0
-        self._reset_history = [t for t in self._reset_history if t >= one_hour_ago]
+    def _make_action(self, name: ResilienceActionName, command: str, **kw) -> ResilienceAction:
+        action_id = f"{self.last_incident_id}:{name.value}:{int(self._time() * 1000)}"
+        return ResilienceAction(name=name, command=command, action_id=action_id, **kw)
 
     def _can_auto_reset(self, now: float) -> tuple[bool, str | None]:
         sh = self.config.self_healing
-        if not sh.auto_reset:
-            return False, "auto_reset_disabled"
-
-        self._prune_reset_history(now)
-        if len(self._reset_history) >= int(sh.max_resets_per_hour):
-            return False, "reset_rate_limit_manual_required"
-
-        if self.last_action_ts is not None and self.last_action == "RESET":
-            if now - self.last_action_ts < float(sh.reset_cooldown_s):
-                return False, "reset_cooldown"
-
-        return True, None
+        return policies.can_auto_reset(
+            auto_reset=sh.auto_reset,
+            reset_history=self._reset_history,
+            max_resets_per_hour=int(sh.max_resets_per_hour),
+            last_action=self.last_action,
+            last_action_ts=self.last_action_ts,
+            reset_cooldown_s=float(sh.reset_cooldown_s),
+            now=now,
+        )
 
     def _can_act(self, now: float) -> bool:
-        sh = self.config.self_healing
-        if self.last_action_ts is None:
-            return True
-        return (now - self.last_action_ts) >= float(sh.action_cooldown_s)
+        return policies.can_act(
+            self.last_action_ts,
+            float(self.config.self_healing.action_cooldown_s),
+            now,
+        )
 
     def on_sample_ok(self) -> dict[str, Any]:
         """Called when we successfully received a valid sensor sample."""
-        self.breaker_state = "CLOSED"
+        self.breaker_state = ResilienceState.CLOSED
         # Recovery: close current incident window
         self.last_incident_id = None
         self._incident_started_ts = None
@@ -128,9 +128,9 @@ class ResilienceOrchestrator:
         # Stage 1: try I2C recover first
         if sh.auto_i2c_recover and self._last_i2c_attempt_ts is None:
             actions.append(
-                ResilienceAction(
-                    name="I2C_RECOVER",
-                    command="I2C_RECOVER",
+                self._make_action(
+                    ResilienceActionName.I2C_RECOVER,
+                    "I2C_RECOVER",
                     requires_manual=False,
                     reason=f"stale_{stale_s:.1f}s",
                 )
@@ -141,18 +141,18 @@ class ResilienceOrchestrator:
                 can_reset, why_not = self._can_auto_reset(now)
                 if can_reset:
                     actions.append(
-                        ResilienceAction(
-                            name="RESET",
-                            command="RESET",
+                        self._make_action(
+                            ResilienceActionName.RESET,
+                            "RESET",
                             requires_manual=False,
                             reason=f"stale_{stale_s:.1f}s_after_i2c",
                         )
                     )
                 elif why_not == "reset_rate_limit_manual_required":
                     actions.append(
-                        ResilienceAction(
-                            name="RESET",
-                            command="RESET",
+                        self._make_action(
+                            ResilienceActionName.RESET,
+                            "RESET",
                             requires_manual=True,
                             reason=why_not,
                         )
@@ -162,18 +162,18 @@ class ResilienceOrchestrator:
             can_reset, why_not = self._can_auto_reset(now)
             if can_reset:
                 actions.append(
-                    ResilienceAction(
-                        name="RESET",
-                        command="RESET",
+                    self._make_action(
+                        ResilienceActionName.RESET,
+                        "RESET",
                         requires_manual=False,
                         reason=f"stale_{stale_s:.1f}s",
                     )
                 )
             elif why_not == "reset_rate_limit_manual_required":
                 actions.append(
-                    ResilienceAction(
-                        name="RESET",
-                        command="RESET",
+                    self._make_action(
+                        ResilienceActionName.RESET,
+                        "RESET",
                         requires_manual=True,
                         reason=why_not,
                     )
@@ -187,7 +187,7 @@ class ResilienceOrchestrator:
                 "stale_s": stale_s,
             }
 
-        self.breaker_state = "OPEN"
+        self.breaker_state = ResilienceState.OPEN
         return actions, {
             "resilience_state": self.breaker_state,
             "incident_id": self.last_incident_id,
@@ -200,20 +200,24 @@ class ResilienceOrchestrator:
         self.last_action_reason = action.reason
         self.last_action_ts = now
 
-        if action.name == "I2C_RECOVER" and executed:
+        if action.name == ResilienceActionName.I2C_RECOVER and executed:
             self._last_i2c_attempt_ts = now
 
-        if action.name == "RESET" and executed:
+        if action.name == ResilienceActionName.RESET and executed:
             self._reset_history.append(now)
-            self._prune_reset_history(now)
+            self._reset_history = policies.prune_reset_history(self._reset_history, now)
 
-        return {
-            "ts": datetime.now().isoformat(),
-            "incident_id": self.last_incident_id,
-            "action": action.name,
-            "executed": bool(executed),
-            "requires_manual": bool(action.requires_manual),
-            "reason": action.reason,
-            "result": result,
-            "resilience_state": self.breaker_state,
-        }
+        status = ActionStatus.EXECUTED if executed else ActionStatus.SKIPPED
+        event = RecoveryEvent(
+            incident_id=self.last_incident_id,
+            action=action.name,
+            status=status,
+            executed=bool(executed),
+            requires_manual=bool(action.requires_manual),
+            reason=action.reason,
+            result=result,
+            resilience_state=self.breaker_state,
+            timestamp=datetime.now().isoformat(),
+            action_id=action.action_id,
+        )
+        return event.to_dict()

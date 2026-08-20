@@ -30,11 +30,12 @@ export default function SimulationPage() {
     updateSimulationParams({ [key]: value });
   };
 
-  // Generate simulation preview data
-  const simData = chartData.map((d) => ({
+  // Generate simulation preview data. Deterministic variation (index-based) so
+  // the preview stays pure across re-renders instead of using Math.random().
+  const simData = chartData.map((d, i) => ({
     ...d,
-    outdoor_temp: (d.temp || 0) + 5 + Math.random() * 3,
-    solar_rad: Math.max(0, Math.sin(Math.random() * Math.PI) * simulationParams.solar_radiation_max),
+    outdoor_temp: (d.temp || 0) + 5 + (i % 4),
+    solar_rad: Math.max(0, Math.sin(i * 0.7) * simulationParams.solar_radiation_max),
   }));
 
   return (

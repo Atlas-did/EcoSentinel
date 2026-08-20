@@ -9,6 +9,7 @@ import {
   Legend,
 } from 'recharts';
 import type { ChartDataPoint } from '@/types';
+import type { TooltipProps } from 'recharts';
 
 interface SensorChartProps {
   data: ChartDataPoint[];
@@ -24,14 +25,14 @@ interface SensorChartProps {
   height?: number;
 }
 
-const CustomTooltip = ({ active, payload, label }: any) => {
+const CustomTooltip = ({ active, payload, label }: TooltipProps<number, string>) => {
   if (active && payload && payload.length) {
     return (
       <div className="bg-slate-900/95 border border-slate-700 p-3 rounded-lg shadow-2xl backdrop-blur-md">
         <p className="text-slate-400 text-[10px] font-mono mb-2 uppercase tracking-wider">
           {label}
         </p>
-        {payload.map((entry: any, index: number) => (
+        {payload.map((entry, index: number) => (
           <p
             key={index}
             className="text-xs font-mono"

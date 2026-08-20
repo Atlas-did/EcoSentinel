@@ -63,6 +63,14 @@ class SelfHealingConfig:
 
 
 @dataclass(frozen=True)
+class ApiConfig:
+    # Allowed CORS origins. Defaults are local dev frontends only; production must
+    # provide an explicit allowlist. Never use ["*"] together with credentials.
+    cors_origins: tuple[str, ...] = ("http://localhost:5173", "http://127.0.0.1:5173")
+    allow_credentials: bool = False
+
+
+@dataclass(frozen=True)
 class AppConfig:
     use_hardware: bool = False
     run_label: str = "saving"  # baseline | saving | other
@@ -71,3 +79,4 @@ class AppConfig:
     thresholds: Thresholds = Thresholds()
     control: ControlConfig = ControlConfig()
     self_healing: SelfHealingConfig = SelfHealingConfig()
+    api: ApiConfig = ApiConfig()

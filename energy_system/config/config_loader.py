@@ -15,6 +15,7 @@ import yaml
 from energy_system.config.runtime_config import (
     AIConfig,
     AIRequestCandidate,
+    ApiConfig,
     AppConfig,
     ControlConfig,
     SelfHealingConfig,
@@ -120,6 +121,26 @@ def _parse_int(
         warnings.append(f"{path} must be <= {max_val}; using default")
         return current
     return val
+
+
+def _parse_str_list(
+    raw: dict, path: str, current: tuple[str, ...], warnings: list[str],
+) -> tuple[str, ...]:
+    """Parse a list-of-strings field (e.g. CORS origins)."""
+    val = _get(raw, path, None)
+    if val is None:
+        return current
+    if not isinstance(val, list):
+        warnings.append(f"{path} must be a list; using default")
+        return current
+    out: list[str] = []
+    for item in val:
+        if isinstance(item, str) and item.strip():
+            out.append(item.strip())
+    if not out:
+        warnings.append(f"{path} must contain at least one non-empty string; using default")
+        return current
+    return tuple(out)
 
 
 def _parse_candidates(
@@ -307,5 +328,19 @@ def load_app_config(
             sh_updates[field] = parse_fn(raw, path, default, warnings)
 
     cfg = replace(cfg, self_healing=replace(sh, **sh_updates))
+
+    # -- api section --
+    cors_origins = _parse_str_list(raw, "api.cors_origins", cfg.api.cors_origins, warnings)
+    allow_credentials = _parse_bool(raw, "api.allow_credentials", cfg.api.allow_credentials, warnings)
+
+    # Cross-field validation: credentials must never be allowed against a wildcard origin.
+    if allow_credentials and "*" in cors_origins:
+        warnings.append(
+            "api.allow_credentials=true is incompatible with cors_origins containing '*'; "
+            "disabling credentials."
+        )
+        allow_credentials = False
+
+    cfg = replace(cfg, api=ApiConfig(cors_origins=cors_origins, allow_credentials=allow_credentials))
 
     return cfg, warnings

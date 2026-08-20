@@ -9,9 +9,35 @@ import time
 from datetime import datetime
 from typing import Any
 
+from energy_system.core.command_policy import (
+    REASON_NON_STRING,
+    REASON_NOT_A_LIST,
+    REASON_RELAY_RESERVED,
+    REASON_TOO_MANY,
+    CommandPolicy,
+    validate_commands,
+)
 from energy_system.utils.helpers import pick
 
 logger = logging.getLogger("CommandDispatcher")
+
+# Legacy rejection reasons returned by validate_ai_commands for backward
+# compatibility. New callers should use validate_commands() for the richer,
+# machine-readable reason codes.
+LEGACY_REASON_NOT_ALLOWED = "command_not_allowed"
+
+# Rich reason codes that map 1:1 onto the legacy reasons.
+_LEGACY_PASSTHROUGH = {
+    REASON_NOT_A_LIST,
+    REASON_TOO_MANY,
+    REASON_NON_STRING,
+    REASON_RELAY_RESERVED,
+}
+
+
+def _to_legacy_reason(reason: str) -> str:
+    """Map a rich rejection reason to the legacy coarse reason string."""
+    return reason if reason in _LEGACY_PASSTHROUGH else LEGACY_REASON_NOT_ALLOWED
 
 
 def validate_ai_commands(
@@ -20,53 +46,23 @@ def validate_ai_commands(
 ) -> tuple[list[str], list[str], list[str]]:
     """Validate AI-suggested commands against the safety allowlist.
 
+    Deprecated compatibility entry point. It delegates to the authoritative
+    :func:`energy_system.core.command_policy.validate_commands` and preserves the
+    legacy string-list contract. New code should call ``validate_commands()``
+    directly to obtain strongly-typed ``DeviceCommand`` objects and rich reasons.
+
     Returns:
-        (accepted, rejected, reasons) tuple.
+        (accepted, rejected, reasons) tuple of strings.
         - Relay 1/2 are reserved for rule-based control — AI cannot touch them.
         - Relay 3/4, CURTAIN, and BUZZER are allowed.
     """
-    accepted: list[str] = []
-    rejected: list[str] = []
-    reasons: list[str] = []
+    result = validate_commands(commands, CommandPolicy(max_cmds_per_cycle=max_cmds))
 
-    if not isinstance(commands, list):
-        return accepted, rejected, ["commands_not_list"]
+    accepted = list(result.accepted_wire)
+    rejected = [r.raw for r in result.rejected]
+    reasons = sorted({_to_legacy_reason(r) for r in result.reasons})
 
-    if len(commands) > max_cmds:
-        reasons.append("too_many_commands")
-        commands = commands[:max_cmds]
-
-    for cmd in commands:
-        if not isinstance(cmd, str) or not cmd.strip():
-            rejected.append(str(cmd))
-            reasons.append("non_string_command")
-            continue
-        c = cmd.strip()
-        parts = c.split()
-        if not parts:
-            continue
-
-        head = parts[0].upper()
-        if head == "RELAY" and len(parts) == 3 and parts[1].isdigit() and parts[2] in {"0", "1"}:
-            relay_n = int(parts[1])
-            if relay_n in {1, 2}:
-                rejected.append(c)
-                reasons.append("relay1_2_reserved_for_rules")
-                continue
-            if 1 <= relay_n <= 4:
-                accepted.append(c)
-                continue
-        elif head == "CURTAIN" and len(parts) == 2 and parts[1].upper() in {"OPEN", "CLOSE", "STOP"}:
-            accepted.append(c)
-            continue
-        elif head == "BUZZER" and len(parts) == 2 and parts[1] in {"0", "1"}:
-            accepted.append(c)
-            continue
-
-        rejected.append(c)
-        reasons.append("command_not_allowed")
-
-    return accepted, rejected, sorted(set(reasons))
+    return accepted, rejected, reasons
 
 
 class RuleActuationController:

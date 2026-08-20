@@ -29,6 +29,25 @@ from fastapi.middleware.cors import CORSMiddleware
 from energy_system.utils.file_io import read_jsonl
 from energy_system.config.config_loader import load_app_config
 
+# ── Config ─────────────────────────────────────────────────────────
+cfg, _warnings = load_app_config()
+
+LOG_DIR = _PROJECT_ROOT / "logs"
+
+
+def _resolve_cors_origins() -> list[str]:
+    """Resolve CORS origins from config, with an explicit env override for prod.
+
+    Defaults are local development frontends only. The wildcard ``*`` is never
+    emitted with ``allow_credentials=True`` — the config loader already rejects
+    that combination.
+    """
+    env = os.getenv("ECOSENTINEL_CORS_ORIGINS", "").strip()
+    if env:
+        return [o.strip() for o in env.split(",") if o.strip()]
+    return list(cfg.api.cors_origins)
+
+
 # ── App ────────────────────────────────────────────────────────────
 app = FastAPI(
     title="EcoSentinel API",
@@ -38,14 +57,11 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
+    allow_origins=_resolve_cors_origins(),
+    allow_credentials=bool(cfg.api.allow_credentials),
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-LOG_DIR = _PROJECT_ROOT / "logs"
-cfg, _warnings = load_app_config()
 
 
 # ── Helpers ────────────────────────────────────────────────────────

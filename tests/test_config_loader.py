@@ -110,5 +110,30 @@ self_healing:
         self.assertTrue(any("self_healing.require_manual_for_actuator_cutoff" in w for w in warnings))
 
 
+    def test_cors_credentials_wildcard_conflict_is_resolved(self):
+        with tempfile.TemporaryDirectory() as td:
+            p = Path(td) / "params.yaml"
+            p.write_text(
+                """
+api:
+  cors_origins: ["*"]
+  allow_credentials: true
+""".lstrip(),
+                encoding="utf-8",
+            )
+            cfg, warnings = load_app_config(p)
+
+        # Credentials are forced off when a wildcard origin is present.
+        self.assertFalse(cfg.api.allow_credentials)
+        self.assertTrue(any("allow_credentials" in w for w in warnings))
+
+    def test_api_defaults_are_local_dev_only(self):
+        with tempfile.TemporaryDirectory() as td:
+            cfg, _ = load_app_config(Path(td) / "missing.yaml")
+
+        self.assertNotIn("*", cfg.api.cors_origins)
+        self.assertFalse(cfg.api.allow_credentials)
+
+
 if __name__ == "__main__":
     unittest.main()

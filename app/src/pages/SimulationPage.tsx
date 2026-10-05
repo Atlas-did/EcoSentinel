@@ -258,8 +258,9 @@ export default function SimulationPage() {
                   transition={{ duration: 1, delay: 0.6 }}
                 />
               </div>
-              <p className="text-[10px] font-mono text-slate-600">
-                AI 策略日均节能 29.6%
+              <p className="text-[10px] font-mono text-amber-400/70">
+                ⚠️ 本页对比卡为**固定示例值**（未接入实测）：只用于演示界面布局，
+                不代表本系统的实测节能率；真实仿真结果见「能源分析」页（现行口径 17.6%，且建筑参数未标定）
               </p>
             </div>
           </motion.div>

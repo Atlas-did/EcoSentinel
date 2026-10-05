@@ -1,10 +1,11 @@
 name: CI
 
 # Lightweight quality gate (plan §11.4): install deps → unit tests → compile
-# check → simulation smoke test, plus the React lint/build and a secret scan.
+# check → simulation smoke test, plus the React lint/build, a secret scan and
+# the **firmware build** (added 2026-10: `firmware/` was previously not compiled
+# by CI at all, so "does the sketch even build?" was unknown rather than known).
 # Deliberately kept minimal so environment friction does not push developers to
-# bypass the gate; heavier steps (coverage thresholds, OpenAPI diff, firmware
-# build matrix) are added later.
+# bypass the gate; heavier steps (coverage thresholds, OpenAPI diff) are added later.
 
 on:
   push:
@@ -84,3 +85,35 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITLEAKS_ENABLE_COMMENTS: "false"
+
+  firmware-build:
+    name: Firmware build (ESP32-S3)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install arduino-cli
+        uses: arduino/setup-arduino-cli@v2
+
+      # 缓存体积大(数百 MB)且与源码无关, 只随"钉扎版本"变化 —— 不要用源码哈希做 key。
+      - name: Cache Arduino core & libraries
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.arduino15
+            ~/Arduino/libraries
+          key: arduino-esp32-3.3.7-pubsubclient-v1
+
+      - name: Install ESP32 core and libraries
+        run: |
+          arduino-cli core update-index
+          arduino-cli core install esp32:esp32@3.3.7
+          # USE_MQTT 在 config.h 中是硬定义(第 66 行), 故 PubSubClient 是硬依赖;
+          # 其余传感器库(DHT/SGP30/ILI9341/INA219/XPT2046)都由 __has_include 保护,
+          # 缺失时自动降级, 因此这里**故意不装**, 以便同时守住"缺库也能编译"这个性质。
+          arduino-cli lib install PubSubClient
+
+      - name: Compile sketch
+        run: |
+          arduino-cli compile --fqbn esp32:esp32:esp32s3 \
+            firmware/esp32_s3_competition

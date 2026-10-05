@@ -171,6 +171,58 @@ class TestCrossLanguageAlignment(unittest.TestCase):
             )
 
 
+class TestFrontendSingleSource(unittest.TestCase):
+    """G8 · 前端页面不得自带阈值或指标键字面量（只能引用 lib/metrics.ts）。
+
+    放在 Python 侧：这里本来就在读 TS 源码做跨语言契约检查，而浏览器 tsconfig 没有 node 类型
+    （在 vitest 里读文件会因缺少 @types/node 而 build 失败，实测过）。
+    """
+
+    PAGES = ["pages/RealtimePage.tsx", "pages/DashboardPage.tsx", "pages/HealthPage.tsx"]
+    QUOTED_KEY = re.compile(r"""['"](temp|humidity|illuminance|eco2|power_w|solar_power_w)['"]""")
+    THRESHOLD_DECL = re.compile(r"threshold\s*:")
+
+    def test_pages_do_not_declare_their_own_thresholds(self):
+        for rel in self.PAGES:
+            path = PROJECT_ROOT / "app" / "src" / rel
+            if not path.exists():
+                continue
+            offenders = [
+                line.strip()
+                for line in path.read_text(encoding="utf-8").splitlines()
+                if self.THRESHOLD_DECL.search(line)
+            ]
+            self.assertEqual(offenders, [], f"{rel} 出现了阈值声明，应改为引用 lib/metrics.ts")
+
+    def test_pages_do_not_hardcode_metric_keys(self):
+        for rel in self.PAGES:
+            path = PROJECT_ROOT / "app" / "src" / rel
+            if not path.exists():
+                continue
+            offenders = [
+                line.strip()
+                for line in path.read_text(encoding="utf-8").splitlines()
+                if self.QUOTED_KEY.search(line)
+            ]
+            self.assertEqual(offenders, [], f"{rel} 出现了指标键字面量，应引用 lib/metrics.ts")
+
+    def test_frontend_metric_table_covers_the_backend_chart_keys(self):
+        """前端指标表的键必须覆盖后端 ChartPoint 的数值字段（跨语言一致性）。"""
+        from energy_system.api import schemas
+
+        table = (PROJECT_ROOT / "app" / "src" / "lib" / "metrics.ts").read_text(encoding="utf-8")
+        model = getattr(schemas, "ChartPoint")
+        fields = set(getattr(model, "model_fields", None) or model.__fields__)
+        for field in sorted(fields):
+            if field in {"time", "schema_version"}:
+                continue
+            self.assertIn(
+                f"{field}:",
+                table,
+                f"后端 ChartPoint.{field} 未出现在前端指标表 lib/metrics.ts 中",
+            )
+
+
 class TestWritePathGuards(unittest.TestCase):
     def test_set_metric_rejects_unregistered_key(self):
         data: dict = {}

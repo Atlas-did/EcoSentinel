@@ -2,36 +2,23 @@ import { useEffect, useState } from 'react';
 import { useAppStore, startAutoRefresh, stopAutoRefresh } from '@/store/useAppStore';
 import { motion } from 'framer-motion';
 import {
-  Thermometer,
-  Droplets,
-  Sun,
-  Wind,
-  Zap,
   Activity,
   AlertTriangle,
 } from 'lucide-react';
 import SensorChart from '@/components/charts/SensorChart';
+import { METRICS, REALTIME_METRICS, anomaliesOf, defaultActiveSensors } from '@/lib/metrics';
 import TimeRangeSelector from '@/components/common/TimeRangeSelector';
 import StatusBadge from '@/components/common/StatusBadge';
 import type { TimeRange } from '@/types';
 
-const sensorConfigs = [
-  { key: 'temp', label: '温度', unit: '°C', icon: Thermometer, color: '#f97316', threshold: 30 },
-  { key: 'humidity', label: '湿度', unit: '%', icon: Droplets, color: '#3b82f6', threshold: 80 },
-  { key: 'illuminance', label: '光照', unit: 'lx', icon: Sun, color: '#eab308', threshold: 1000 },
-  { key: 'eco2', label: 'eCO2', unit: 'ppm', icon: Wind, color: '#06b6d4', threshold: 1200 },
-  { key: 'power_w', label: '功率', unit: 'W', icon: Zap, color: '#ef4444', threshold: 20 },
-];
+// 指标键集/标签/单位/颜色/阈值/图标都来自 '@/lib/metrics'（单一真值，M6.3）
+const sensorConfigs = REALTIME_METRICS.map((key) => ({ key, ...METRICS[key] }));
 
 export default function RealtimePage() {
   const { chartData, latestSnapshot, selectedTimeRange, setTimeRange } = useAppStore();
-  const [activeSensors, setActiveSensors] = useState<Record<string, boolean>>({
-    temp: true,
-    humidity: true,
-    illuminance: true,
-    eco2: false,
-    power_w: true,
-  });
+  const [activeSensors, setActiveSensors] = useState<Record<string, boolean>>(
+    defaultActiveSensors(),
+  );
 
   useEffect(() => {
     startAutoRefresh();
@@ -46,9 +33,8 @@ export default function RealtimePage() {
     setTimeRange(range);
   };
 
-  const anomalies = chartData.filter((d) => {
-    return (d.temp && d.temp > 30) || (d.eco2 && d.eco2 > 1000);
-  });
+  // 异常判定与阈值同源（此前这里是硬编码的 temp>30 / eco2>1000，与上面的阈值表不一致）
+  const anomalies = anomaliesOf(chartData);
 
   return (
     <div className="min-h-screen bg-[#020c1b] pt-16 pb-6">
@@ -82,7 +68,10 @@ export default function RealtimePage() {
             const Icon = sensor.icon;
             const isActive = activeSensors[sensor.key];
             const currentValue = latestSnapshot?.[sensor.key as keyof typeof latestSnapshot] as number | undefined;
-            const isAlert = currentValue && currentValue > sensor.threshold;
+            const isAlert =
+              sensor.threshold !== null &&
+              currentValue !== undefined &&
+              currentValue > sensor.threshold;
 
             return (
               <button
@@ -139,7 +128,8 @@ export default function RealtimePage() {
           {sensorConfigs.map((sensor, i) => {
             const Icon = sensor.icon;
             const value = latestSnapshot?.[sensor.key as keyof typeof latestSnapshot] as number | undefined;
-            const isAlert = value && value > sensor.threshold;
+            const isAlert =
+              sensor.threshold !== null && value !== undefined && value > sensor.threshold;
 
             return (
               <motion.div

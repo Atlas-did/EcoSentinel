@@ -269,6 +269,10 @@ class TestFrontendSingleSource(unittest.TestCase):
             )
         self.assertIn("backendOnline", dash, "系统模式应来自 store 的真实字段")
 
+        nav = (PROJECT_ROOT / "app/src/components/layout/SideNav.tsx").read_text(encoding="utf-8")
+        self.assertNotIn(">ONLINE<", nav, "SideNav 又用固定字样冒充在线状态")
+        self.assertIn("backendOnline", nav, "SideNav 的在线状态应来自 store 的真实字段")
+
     def test_no_fabricated_hardware_in_ui(self):
         """界面不得展示本项目**并不存在**的硬件（评审 §1.3 第 3 条）。
 

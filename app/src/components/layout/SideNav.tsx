@@ -24,7 +24,7 @@ const navItems = [
 export default function SideNav() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { sidebarOpen, toggleSidebar } = useAppStore();
+  const { sidebarOpen, toggleSidebar, backendOnline } = useAppStore();
 
   return (
     <aside
@@ -90,15 +90,19 @@ export default function SideNav() {
         <div className="absolute bottom-4 left-3 right-3 p-3 rounded-lg bg-slate-800/30 border border-slate-700/20">
           <div className="flex items-center justify-between mb-2">
             <span className="text-[9px] font-mono text-slate-600 uppercase">System</span>
-            <span className="text-[9px] font-mono text-emerald-400">ONLINE</span>
+            <span
+              className={`text-[9px] font-mono ${
+                backendOnline === true
+                  ? 'text-emerald-400'
+                  : backendOnline === false
+                    ? 'text-red-400'
+                    : 'text-slate-500'
+              }`}
+            >
+              {backendOnline === true ? '在线' : backendOnline === false ? '离线' : '—'}
+            </span>
           </div>
-          <div className="h-1 bg-slate-800 rounded-full overflow-hidden">
-            <motion.div
-              className="h-full bg-emerald-500/50"
-              animate={{ width: ['60%', '80%', '60%'] }}
-              transition={{ duration: 3, repeat: Infinity }}
-            />
-          </div>
+          {/* 原有一条 60%↔80% 的无限呼吸条：与任何真实数据无关，已按评审 §1.3 第 3 条移除 */}
         </div>
       )}
     </aside>

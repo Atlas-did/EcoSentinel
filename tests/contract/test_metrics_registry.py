@@ -256,6 +256,19 @@ class TestFrontendSingleSource(unittest.TestCase):
     #: 图表**结构色**（网格线 / 坐标轴 / 刻度文字）—— 与任何指标无关，允许就地写字面量
     CHART_CHROME_COLORS = {"#1e293b", "#334155", "#475569"}
 
+    def test_no_fabricated_mode_badges(self):
+        """系统模式/安全锁不得用固定字样冒充真实状态（评审 §1.3 第 3 条）。
+
+        "AUTO" 与 "ENGAGED" 曾是写死的常量：前者改为按 store 的真实字段 backendOnline 派生，
+        后者后端未暴露对应状态 ⇒ 如实显示"未接入"，不猜。
+        """
+        dash = (PROJECT_ROOT / "app/src/pages/DashboardPage.tsx").read_text(encoding="utf-8")
+        for forbidden in ("AUTO", "ENGAGED"):
+            self.assertNotIn(
+                f">{forbidden}<", dash, f"DashboardPage 又用固定字样冒充状态：{forbidden}"
+            )
+        self.assertIn("backendOnline", dash, "系统模式应来自 store 的真实字段")
+
     def test_no_fabricated_hardware_in_ui(self):
         """界面不得展示本项目**并不存在**的硬件（评审 §1.3 第 3 条）。
 

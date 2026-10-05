@@ -35,6 +35,7 @@ export default function DashboardPage() {
     setTimeRange,
     acceptCandidate,
     rejectCandidate,
+    backendOnline,
   } = useAppStore();
 
   useEffect(() => {
@@ -195,14 +196,16 @@ export default function DashboardPage() {
                   <HardDrive className="w-3 h-3" />
                   系统模式
                 </span>
-                <span className="text-cyan-400">AUTO</span>
+                <span className="text-cyan-400">
+                {backendOnline === true ? '在线' : backendOnline === false ? '离线' : '—'}
+              </span>
               </div>
               <div className="flex items-center justify-between text-xs font-mono text-slate-500">
                 <span className="flex items-center gap-1.5">
                   <Shield className="w-3 h-3" />
                   安全锁
                 </span>
-                <span className="text-emerald-400">ENGAGED</span>
+                <span className="text-slate-500">未接入（后端未暴露安全锁状态）</span>
               </div>
             </div>
           </div>

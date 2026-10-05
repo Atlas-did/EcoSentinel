@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useAppStore } from '@/store/useAppStore';
 import { motion } from 'framer-motion';
 import {
@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import SensorChart from '@/components/charts/SensorChart';
 import { treesEquivalent } from '@/lib/format';
+import { cumulativeEnergySeries, hasCumulativeSeries } from '@/lib/chart';
 
 type Period = 'day' | 'week' | 'month';
 
@@ -25,12 +26,10 @@ export default function EnergyAnalysisPage() {
     { label: '月', value: 'month' },
   ];
 
-  // Generate cumulative data
-  const cumulativeData = chartData.map((d, i) => ({
-    ...d,
-    baseline_cum: chartData.slice(0, i + 1).reduce((acc, p) => acc + (p.baseline_power || 0) * 0.0167, 0),
-    saving_cum: chartData.slice(0, i + 1).reduce((acc, p) => acc + (p.saving_power || 0) * 0.0167, 0),
-  }));
+  // 累计曲线：后端只给逐点功率时（无 baseline_power/saving_power）如实告知不可用，
+  // 而不是画一条恒为 0 的曲线。前缀和 O(n) + useMemo，避免随 3s 轮询反复全量重算。
+  const cumulativeAvailable = useMemo(() => hasCumulativeSeries(chartData), [chartData]);
+  const cumulativeData = useMemo(() => cumulativeEnergySeries(chartData), [chartData]);
 
   return (
     <div className="min-h-screen bg-[#020c1b] pt-16 pb-6">
@@ -182,14 +181,25 @@ export default function EnergyAnalysisPage() {
             <h3 className="text-slate-400 text-xs font-mono uppercase tracking-widest mb-4">
               累计能耗曲线
             </h3>
-            <SensorChart
-              data={cumulativeData}
-              showTemp={false}
-              showHumidity={false}
-              showBaseline
-              showSaving
-              height={260}
-            />
+            {cumulativeAvailable ? (
+              <SensorChart
+                data={cumulativeData}
+                showTemp={false}
+                showHumidity={false}
+                showBaseline
+                showSaving
+                height={260}
+              />
+            ) : (
+              <div className="h-[260px] flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-slate-700/60 bg-slate-900/40 px-6 text-center">
+                <BarChart3 className="w-6 h-6 text-slate-600" />
+                <p className="text-xs font-mono text-slate-400">累计曲线不可用</p>
+                <p className="text-[11px] font-mono text-slate-500 leading-relaxed">
+                  后端 /api/chart 未提供逐点基准功率（baseline_power / saving_power）。
+                  为避免显示恒为 0 的假曲线，这里如实留空；接入后会自动显示。
+                </p>
+              </div>
+            )}
           </motion.div>
 
           <motion.div

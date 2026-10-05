@@ -47,7 +47,7 @@ export default function TopBar() {
               <Leaf className="w-4 h-4 text-white" />
             </div>
             <span className="text-lg font-bold text-slate-100 tracking-tight">
-              BioMimic Lab
+              EcoSentinel
             </span>
           </div>
 

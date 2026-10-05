@@ -10,6 +10,8 @@
 每条都要给出理由 —— 清单本身是文档，不是垃圾桶。
 """
 
+import difflib
+import json
 import re
 import unittest
 from pathlib import Path
@@ -277,6 +279,68 @@ class TestFrontendSingleSource(unittest.TestCase):
                 table,
                 f"后端 ChartPoint.{field} 未出现在前端指标表 lib/metrics.ts 中",
             )
+
+
+class TestReadSitesUseRegisteredKeys(unittest.TestCase):
+    """M1 读取侧：抓**指标名笔误**（与已登记指标高度相似、但并不是它）。
+
+    设计取舍（实测得出）：最初写成"所有读取键都必须已登记"⇒ 报出 5502 字符的清单，
+    其中绝大多数是**合法的非指标键**（`ai_*` 元数据、诊断字段、仿真内部键），
+    只能靠一份巨大的允许清单压住 —— 那正是"垃圾桶清单"。
+    改为**近邻检测**：只把"与某个已登记指标很像但不是它"的键判为可疑（如 `tempreature`、
+    `humidty`）。既不需要允许清单，又恰好命中真实风险（笔误导致静默读到 None）。
+    """
+
+    SCAN_PACKAGES = ["ai", "algorithms", "api", "application", "core", "domain", "simulation", "utils", "config"]
+    READ_KEY = re.compile(r"""(?:\.get\(\s*|\[\s*)['"]([a-z][a-z0-9_]*)['"]""")
+    #: 相似度阈值：0.85 能抓住单字符增删改，又不会把无关键拉进来（实测无噪声）
+    CUTOFF = 0.85
+
+    def _known_names(self):
+        return (
+            set(METRICS)
+            | set(telemetry.ALIASES)
+            | {field.wire_key for field in telemetry.WIRE_FIELDS}
+        )
+
+    #: 与某个指标名相似、但**确实不同的合法键** → 理由（这条要短，不做垃圾桶）
+    KNOWN_DISTINCT_KEYS = {
+        "error": "单条错误信息（ACK/错误体），与指标 `errors`（本轮采样错误列表）不同",
+    }
+
+    def _read_keys(self):
+        found: dict[str, set[str]] = {}
+        for pkg in self.SCAN_PACKAGES:
+            root = PROJECT_ROOT / "energy_system" / pkg
+            if not root.is_dir():
+                continue
+            for path in sorted(root.rglob("*.py")):
+                text = path.read_text(encoding="utf-8")
+                # 去掉注释与**文档字符串**：它们里面举例提到的键名不是真实读取
+                text = re.sub(r'"""(?:.|\n)*?"""', "", text)
+                text = re.sub(r"'''(?:.|\n)*?'''", "", text)
+                text = re.sub(r"#[^\n]*", "", text)
+                rel = str(path.relative_to(PROJECT_ROOT)).replace("\\", "/")
+                for key in set(self.READ_KEY.findall(text)):
+                    found.setdefault(key, set()).add(rel)
+        return found
+
+    def test_no_near_miss_metric_names_in_reads(self):
+        known = self._known_names()
+        offenders = {}
+        for key, files in sorted(self._read_keys().items()):
+            if key in known or key in self.KNOWN_DISTINCT_KEYS:
+                continue
+            close = difflib.get_close_matches(key, sorted(known), n=1, cutoff=self.CUTOFF)
+            if close:
+                offenders[key] = {"looks_like": close[0], "files": sorted(files)}
+        self.assertEqual(
+            offenders,
+            {},
+            "疑似指标名笔误（与已登记指标高度相似但不是它）：{}".format(
+                json.dumps(offenders, ensure_ascii=False, indent=2)
+            ),
+        )
 
 
 class TestWritePathGuards(unittest.TestCase):

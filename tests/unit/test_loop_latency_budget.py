@@ -14,6 +14,7 @@ import unittest
 from unittest.mock import patch
 
 from energy_system.application import runtime as runtime_mod
+from energy_system.application import usecases as usecases_mod
 from energy_system.application import wiring as wiring_mod
 from energy_system.application.ai_worker import AiWorker, ManualJobRunner
 from energy_system.application.decision import DecisionResult
@@ -114,7 +115,7 @@ class TestLoopLatencyBudget(unittest.TestCase):
         sched_logger.addHandler(counter)
         try:
             with patch.object(wiring_mod, "LogManager", _NullLogManager), patch.object(
-                runtime_mod, "append_jsonl", lambda *a, **k: None
+                usecases_mod, "append_jsonl", lambda *a, **k: None
             ):
                 app = _build_app()
                 app.scheduler = Scheduler(monotonic=clock.monotonic, sleep=clock.advance)
@@ -126,7 +127,7 @@ class TestLoopLatencyBudget(unittest.TestCase):
                 )
                 acq = _Acquisition(app, clock, BUDGET_S, runner=runner, ai_delay=AI_DELAY_S)
                 app.acquisition = acq
-                real_time = runtime_mod.time
+                real_time = usecases_mod.time  # patch 的是 time 模块对象本身 ⇒ 全局生效
                 with patch.object(real_time, "monotonic", clock.monotonic):
                     app.run()
                 log = app.log_mgr
@@ -158,7 +159,7 @@ class TestRealThreads(unittest.TestCase):
     def test_slow_ai_with_real_threads_keeps_the_cadence(self):
         """端到端：真实线程 + 短周期。同步实现约 1-2 轮，异步实现约 20 轮。"""
         with patch.object(wiring_mod, "LogManager", _NullLogManager), patch.object(
-            runtime_mod, "append_jsonl", lambda *a, **k: None
+            usecases_mod, "append_jsonl", lambda *a, **k: None
         ):
             app = _build_app()  # 必须在 patch 内构造：LogManager 的 __init__ 会碰文件系统
             app.loop_interval_s = 0.05

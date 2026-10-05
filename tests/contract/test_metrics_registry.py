@@ -253,11 +253,23 @@ class TestFrontendSingleSource(unittest.TestCase):
         fields = set(getattr(model, "model_fields", None) or model.__fields__)
         self.assertEqual(sorted(keys - fields), [], "快照告警表出现了后端 Snapshot 没有的字段")
 
+    #: 图表**结构色**（网格线 / 坐标轴 / 刻度文字）—— 与任何指标无关，允许就地写字面量
+    CHART_CHROME_COLORS = {"#1e293b", "#334155", "#475569"}
+
     def test_chart_does_not_hardcode_gradient_colors(self):
-        """SensorChart 的渐变颜色必须引用 lib/metrics.ts，不得再写死十六进制。"""
+        """图表里凡是**指标颜色**（渐变/描边/刻度填充）都必须引用 lib/metrics.ts。
+
+        2026-10 扩围：原先只查 `stopColor`，结果 9 条系列的 `stroke="#..."` 全被漏检
+        （评审 P1 指出累计曲线问题的同一批代码）。现在连同 `stroke` 与 `fill: '#...'` 一起查，
+        只放行上表 3 个结构色。
+        """
         chart = (PROJECT_ROOT / "app/src/components/charts/SensorChart.tsx").read_text(encoding="utf-8")
-        stops = sorted(set(re.findall(r'stopColor="(#[0-9a-fA-F]{6})"', chart)))
-        self.assertEqual(stops, [], f"SensorChart 又硬编码了渐变颜色：{stops}（应引用 lib/metrics.ts）")
+        used = set(re.findall(r'(?:stopColor|stroke)="(#[0-9a-fA-F]{6})"', chart))
+        used |= set(re.findall(r"fill:\s*'(#[0-9a-fA-F]{6})'", chart))
+        offenders = sorted(used - self.CHART_CHROME_COLORS)
+        self.assertEqual(
+            offenders, [], f"SensorChart 又硬编码了指标颜色：{offenders}（应引用 lib/metrics.ts）"
+        )
 
     def test_metric_table_colors_are_concrete(self):
         table = (PROJECT_ROOT / "app/src/lib/metrics.ts").read_text(encoding="utf-8")

@@ -124,7 +124,7 @@ export default function SensorChart({
             type="monotone"
             dataKey="temp"
             name="温度°C"
-            stroke="#f97316"
+            stroke={METRICS.temp.color}
             strokeWidth={2}
             fillOpacity={1}
             fill={`url(#${gid('colorTemp')})`}
@@ -135,7 +135,7 @@ export default function SensorChart({
             type="monotone"
             dataKey="humidity"
             name="湿度%"
-            stroke="#3b82f6"
+            stroke={METRICS.humidity.color}
             strokeWidth={2}
             fillOpacity={1}
             fill={`url(#${gid('colorHum')})`}
@@ -146,7 +146,7 @@ export default function SensorChart({
             type="monotone"
             dataKey="illuminance"
             name="光照lx"
-            stroke="#eab308"
+            stroke={METRICS.illuminance.color}
             strokeWidth={1.5}
             fillOpacity={0}
           />
@@ -156,7 +156,7 @@ export default function SensorChart({
             type="monotone"
             dataKey="eco2"
             name="eCO2ppm"
-            stroke="#06b6d4"
+            stroke={METRICS.eco2.color}
             strokeWidth={1.5}
             fillOpacity={0}
           />
@@ -166,7 +166,7 @@ export default function SensorChart({
             type="monotone"
             dataKey="power_w"
             name="功率W"
-            stroke="#ef4444"
+            stroke={METRICS.power_w.color}
             strokeWidth={2}
             fillOpacity={1}
             fill={`url(#${gid('colorPower')})`}
@@ -177,7 +177,7 @@ export default function SensorChart({
             type="monotone"
             dataKey="solar_power_w"
             name="太阳能W"
-            stroke="#eab308"
+            stroke={METRICS.solar_power_w.color}
             strokeWidth={2}
             fillOpacity={1}
             fill={`url(#${gid('colorSolar')})`}
@@ -188,7 +188,7 @@ export default function SensorChart({
             type="monotone"
             dataKey={cumulative ? 'baseline_cum' : 'baseline_power'}
             name={cumulative ? '基线累计电量' : '基线功率'}
-            stroke="#94a3b8"
+            stroke={METRICS.baseline_power.color}
             strokeWidth={1.5}
             strokeDasharray="5 5"
             fillOpacity={1}
@@ -200,7 +200,7 @@ export default function SensorChart({
             type="monotone"
             dataKey={cumulative ? 'saving_cum' : 'saving_power'}
             name={cumulative ? '节能累计电量' : '节能功率'}
-            stroke="#10b981"
+            stroke={METRICS.saving_power.color}
             strokeWidth={2}
             fillOpacity={1}
             fill={`url(#${gid('colorSaving')})`}
@@ -211,7 +211,7 @@ export default function SensorChart({
             type="monotone"
             dataKey="comfort_score"
             name="舒适度"
-            stroke="#8b5cf6"
+            stroke={METRICS.comfort_score.color}
             strokeWidth={2}
             fillOpacity={1}
             fill={`url(#${gid('colorComfort')})`}

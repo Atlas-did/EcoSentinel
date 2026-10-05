@@ -3,10 +3,15 @@ import type { ChartDataPoint } from '@/types'
 /**
  * 逐点功率 → 累计电量的换算系数。
  *
- * ⚠️ 这是从页面里**原样提取**出来的既有魔数，数值未改动（口径：按 1 分钟采样步长把 W 折算成
- * kWh 量级）。其单位口径本身是否正确另需确认 —— 本次重构只做"提取 + 命名"，不悄悄改数字。
+ * 口径：图表每个点是 **1 分钟**桶，功率单位为 W ⇒ 单点电量 = W × 60 s。
+ * 换算成 kWh 需先除 3600（秒→小时）再除 1000（W→kW），即 60/3600/1000 ≈ 1.6667e-5。
+ *
+ * ⚠️ 2026-10 更正：此前的 `0.0167` 少了 **1000 倍**（它其实是 W·min → Wh 的系数，
+ * 不是 kWh）。该错误由《EcoSentinel 技术评审与演进路线图》指出，已按上式修正。
  */
-export const POWER_TO_ENERGY_FACTOR = 0.0167
+const SECONDS_PER_POINT = 60
+
+export const POWER_TO_ENERGY_FACTOR = SECONDS_PER_POINT / 3600 / 1000
 
 export type CumulativePoint = ChartDataPoint & { baseline_cum: number; saving_cum: number }
 

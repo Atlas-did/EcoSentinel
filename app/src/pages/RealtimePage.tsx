@@ -6,7 +6,7 @@ import {
   AlertTriangle,
 } from 'lucide-react';
 import SensorChart from '@/components/charts/SensorChart';
-import { METRICS, REALTIME_METRICS, anomaliesOf, defaultActiveSensors, exceedsThreshold } from '@/lib/metrics';
+import { METRICS, REALTIME_METRICS, anomaliesOf, defaultActiveSensors, exceedsThreshold, snapshotValue } from '@/lib/metrics';
 import TimeRangeSelector from '@/components/common/TimeRangeSelector';
 import StatusBadge from '@/components/common/StatusBadge';
 import type { TimeRange } from '@/types';
@@ -67,7 +67,7 @@ export default function RealtimePage() {
           {sensorConfigs.map((sensor) => {
             const Icon = sensor.icon;
             const isActive = activeSensors[sensor.key];
-            const currentValue = latestSnapshot?.[sensor.key as keyof typeof latestSnapshot] as number | undefined;
+            const currentValue = snapshotValue(latestSnapshot, sensor.key);
             const isAlert =
               sensor.threshold !== null &&
               currentValue !== undefined &&
@@ -127,7 +127,7 @@ export default function RealtimePage() {
         <div className="grid grid-cols-5 gap-4">
           {sensorConfigs.map((sensor, i) => {
             const Icon = sensor.icon;
-            const value = latestSnapshot?.[sensor.key as keyof typeof latestSnapshot] as number | undefined;
+            const value = snapshotValue(latestSnapshot, sensor.key);
             const isAlert =
               sensor.threshold !== null && value !== undefined && value > sensor.threshold;
 

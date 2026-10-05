@@ -9,7 +9,7 @@
 
 import { describe, expect, it } from 'vitest'
 
-import { METRICS, anomaliesOf, defaultActiveSensors, isAnomalous } from '@/lib/metrics'
+import { METRICS, anomaliesOf, defaultActiveSensors, isAnomalous, snapshotValue } from '@/lib/metrics'
 import { SNAPSHOT_ALERTS, TARGET_TEMP_C, isSnapshotAlert } from '@/lib/metrics'
 
 describe('METRICS · 覆盖与默认显示', () => {
@@ -86,6 +86,22 @@ describe('异常判定 · 阈值必须同源', () => {
     const snapshot = JSON.parse(JSON.stringify(points))
     expect(anomaliesOf(points).map((p) => p.time)).toEqual(['b', 'c'])
     expect(points).toEqual(snapshot)
+  })
+})
+
+describe('snapshotValue · 图表键 → 快照字段的唯一映射', () => {
+  it('temp 必须映射到快照的 temperature（此前直接索引 ⇒ 温度恒显示 --）', () => {
+    expect(snapshotValue({ temperature: 25.5 }, 'temp')).toBe(25.5)
+    // 只认快照的真实字段名：`temp` 不是快照字段
+    expect(snapshotValue({ temp: 25.5 }, 'temp')).toBeUndefined()
+  })
+
+  it('同名字段直接取用；缺失或非数值一律 undefined', () => {
+    expect(snapshotValue({ humidity: 45 }, 'humidity')).toBe(45)
+    expect(snapshotValue({ humidity: null }, 'humidity')).toBeUndefined()
+    expect(snapshotValue({ humidity: '45' }, 'humidity')).toBeUndefined()
+    expect(snapshotValue({}, 'eco2')).toBeUndefined()
+    expect(snapshotValue(null, 'temp')).toBeUndefined()
   })
 })
 

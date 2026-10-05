@@ -66,4 +66,11 @@ describe('cumulativeEnergySeries · 累计曲线', () => {
     const fast = cumulativeEnergySeries(points).map((p) => p.baseline_cum)
     fast.forEach((value, i) => expect(value).toBeCloseTo(naive[i], 10))
   })
+
+  it('系数口径：1 分钟桶、W→kWh（60/3600/1000），不是 0.0167', () => {
+    // 既有用例都只按符号用这个常量，所以改错值不会红 —— 这条专门钉住单位口径。
+    // 0.0167 = 1/60 是 W·min→Wh，少除了 1000，由评审指出后修正。
+    expect(POWER_TO_ENERGY_FACTOR).toBeCloseTo(60 / 3600 / 1000, 12)
+    expect(POWER_TO_ENERGY_FACTOR).toBeLessThan(0.001)
+  })
 })

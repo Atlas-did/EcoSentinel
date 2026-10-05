@@ -195,6 +195,26 @@ export function isSnapshotAlert(key: SnapshotAlertKey, value: number | null | un
   return direction === 'above' ? value > threshold : value < threshold
 }
 
+/** 图表指标键 → **快照字段名**的唯一映射点。
+ *
+ * 两套线上名并存：图表用 `temp`（后端 registry 里 `temp` 是 `temperature` 的别名），
+ * 而 `/api/snapshot` 用的是 `temperature`。此前 RealtimePage 直接拿 `sensor.key` 去索引快照，
+ * 导致温度永远读不到（显示 `--`）—— 这是评审抓到的真实缺陷。
+ */
+const SNAPSHOT_KEY_OF: Partial<Record<MetricKey, string>> = {
+  temp: 'temperature',
+}
+
+/** 从快照里按**图表指标键**安全取值（键名映射与类型检查都在这里）。 */
+export function snapshotValue(
+  snapshot: object | null | undefined,
+  key: MetricKey,
+): number | undefined {
+  if (!snapshot) return undefined
+  const value = (snapshot as Record<string, unknown>)[SNAPSHOT_KEY_OF[key] ?? key]
+  return typeof value === 'number' ? value : undefined
+}
+
 /** 实时页按顺序展示的指标 */
 export const REALTIME_METRICS: MetricKey[] = ['temp', 'humidity', 'illuminance', 'eco2', 'power_w']
 

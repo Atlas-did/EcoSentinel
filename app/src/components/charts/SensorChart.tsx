@@ -9,6 +9,7 @@ import {
   Legend,
 } from 'recharts';
 import type { ChartDataPoint } from '@/types';
+import { useId } from 'react';
 import { METRICS } from '@/lib/metrics';
 import type { TooltipProps } from 'recharts';
 
@@ -61,7 +62,12 @@ export default function SensorChart({
   showComfort = false,
   height = 300,
 }: SensorChartProps) {
-  // 渐变颜色取自 '@/lib/metrics'（单一真值）；id 保持原字符串，因为下方 fill="url(#...)" 引用它们。
+  // 渐变颜色取自 '@/lib/metrics'（单一真值）。
+  // id 加 useId() 前缀：固定 id（colorTemp…）在**同页两个图表实例**时会互相覆盖
+  // （后渲染的 <linearGradient> 定义会遮蔽前一个，导致前一个图表填充色错乱）。
+  // useId() 返回值含冒号（如 :r0:），在 CSS 选择器里不安全，去掉后用作前缀。
+  const uid = useId().replace(/:/g, '');
+  const gid = (suffix: string) => `${uid}-${suffix}`;
   const gradients = [
     { id: 'colorTemp', metric: 'temp', visible: showTemp, top: 0.3 },
     { id: 'colorHum', metric: 'humidity', visible: showHumidity, top: 0.3 },
@@ -79,7 +85,7 @@ export default function SensorChart({
           {gradients
             .filter((g) => g.visible)
             .map((g) => (
-              <linearGradient key={g.id} id={g.id} x1="0" y1="0" x2="0" y2="1">
+              <linearGradient key={g.id} id={gid(g.id)} x1="0" y1="0" x2="0" y2="1">
                 <stop offset="5%" stopColor={METRICS[g.metric].color} stopOpacity={g.top} />
                 <stop offset="95%" stopColor={METRICS[g.metric].color} stopOpacity={0} />
               </linearGradient>
@@ -118,7 +124,7 @@ export default function SensorChart({
             stroke="#f97316"
             strokeWidth={2}
             fillOpacity={1}
-            fill="url(#colorTemp)"
+            fill={`url(#${gid('colorTemp')})`}
           />
         )}
         {showHumidity && (
@@ -129,7 +135,7 @@ export default function SensorChart({
             stroke="#3b82f6"
             strokeWidth={2}
             fillOpacity={1}
-            fill="url(#colorHum)"
+            fill={`url(#${gid('colorHum')})`}
           />
         )}
         {showIlluminance && (
@@ -160,7 +166,7 @@ export default function SensorChart({
             stroke="#ef4444"
             strokeWidth={2}
             fillOpacity={1}
-            fill="url(#colorPower)"
+            fill={`url(#${gid('colorPower')})`}
           />
         )}
         {showSolar && (
@@ -171,7 +177,7 @@ export default function SensorChart({
             stroke="#eab308"
             strokeWidth={2}
             fillOpacity={1}
-            fill="url(#colorSolar)"
+            fill={`url(#${gid('colorSolar')})`}
           />
         )}
         {showBaseline && (
@@ -183,7 +189,7 @@ export default function SensorChart({
             strokeWidth={1.5}
             strokeDasharray="5 5"
             fillOpacity={1}
-            fill="url(#colorBaseline)"
+            fill={`url(#${gid('colorBaseline')})`}
           />
         )}
         {showSaving && (
@@ -194,7 +200,7 @@ export default function SensorChart({
             stroke="#10b981"
             strokeWidth={2}
             fillOpacity={1}
-            fill="url(#colorSaving)"
+            fill={`url(#${gid('colorSaving')})`}
           />
         )}
         {showComfort && (
@@ -205,7 +211,7 @@ export default function SensorChart({
             stroke="#8b5cf6"
             strokeWidth={2}
             fillOpacity={1}
-            fill="url(#colorComfort)"
+            fill={`url(#${gid('colorComfort')})`}
           />
         )}
       </AreaChart>

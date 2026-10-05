@@ -69,6 +69,11 @@ jobs:
       - name: Lint
         run: npm run lint
 
+      # G6：前端此前零测试，而下一步要批量删除不可达的 ui/ 脚手架（约 61% 的 src）——
+      # 没有测试网就动刀是赌博。这里把 vitest 变成阻塞门禁。
+      - name: Unit tests (vitest)
+        run: npm test
+
       - name: Build (typecheck + bundle)
         run: npm run build
 

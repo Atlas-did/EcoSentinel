@@ -35,7 +35,7 @@ A closed-loop edge-computing system for **real-time environmental monitoring** a
 pip install -r requirements.txt
 
 # 2. Run simulation comparison (baseline vs energy-saving)
-python energy_system/simulation/compare.py
+python -m energy_system.simulation.compare
 
 # 3. Launch the Streamlit dashboard
 streamlit run dashboard.py
@@ -141,6 +141,13 @@ ecosentinel/
 - **Baseline vs Saving comparison** — run two labels, dashboard shows savings rate
 - **Comfort score** — temperature/humidity mapped to a unified metric, proving savings aren't from sacrificing comfort
 - **Dual-channel metering** (optional) — measure both load consumption + solar input simultaneously
+
+> ⚠️ **Simulation numbers are not field measurements.** With the current (uncalibrated, demo-grade)
+> building parameters, the deterministic 3-day simulation reports baseline 199.10 kWh vs saving
+> 164.01 kWh → **17.6% savings** (comfort score 49.3% vs 49.1%). Earlier revisions of this repo quoted
+> 29.8% / 82.1%: those came from a numerically diverging thermal model (explicit Euler at dt=300 s,
+> above the 2τ≈27.8 s stability limit) and are **retracted**. The savings claim still needs
+> real-hardware, alternating baseline/saving runs before it can be compared with literature values.
 
 ### 5. Observable Evidence Chain
 

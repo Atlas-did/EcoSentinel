@@ -73,16 +73,39 @@ class DataAcquisition:
                 "Inject simulation.data_generator.EnvironmentGenerator at the composition root."
             )
             return None
-        now_ts = time.time()
+        # mock 的昼夜/在室率必须按**本地**小时：EnvironmentGenerator 内部按 (t/3600)%24 取小时，
+        # 直接传 time.time()（UTC epoch）会把上海的白天算成凌晨（相差 8 小时，昼夜策略全反）。
+        local_offset = time.altzone if time.localtime().tm_isdst else time.timezone
+        now_ts = time.time() - local_offset
         T_out, I_solar, hour = gen.generate(now_ts, use_random_walk=True)
         humidity = gen.generate_humidity(now_ts, use_random_walk=True)
 
+        # 室内温度 = 室外 + 内热造成的稳态温差，温差用**本仓已有参数**推导（不臆造）：
+        #   ΔT = Q_internal / (U_WALL·A_WALL)  ⇒ 白天 550/1800 ≈ 0.31 K、夜间 50/1800 ≈ 0.03 K
+        # 这是稳态近似；需要动态过程请走 ThermalModel（已改为解析指数积分）。
+        from energy_system.config import settings as _settings
+
+        ua = _settings.U_WALL * _settings.A_WALL
+        q_internal = (_settings.Q_PEOPLE + _settings.Q_EQUIP) if 9 <= hour < 18 else 50.0
+        t_indoor = T_out + (q_internal / ua if ua > 0 else 0.0)
+
+        # 电参量（**仅 mock**，合成演示值而非实测）：接硬件时由 INA219 提供，
+        # 没有它们 EnergyAccumulator 无法累积 energy_wh（评审 P1 第 3 条）。
+        illuminance = max(0.0, float(I_solar) * 100.0 * 0.15)
+        bus_v = 12.0
+        load_w = 40.0 + illuminance / 100.0
+        current_ma = round(load_w / bus_v * 1000.0, 1)
+        pwr_mw = round(load_w * 1000.0, 1)
+
         return {
-            "temperature": round(float(T_out), 1),
+            "temperature": round(float(t_indoor), 1),
             "humidity": round(float(humidity), 1),
-            "illuminance": round(max(0.0, float(I_solar) * 100.0 * 0.15), 1),
+            "illuminance": round(illuminance, 1),
             "eco2": 450,
             "tvoc": 12,
+            "bus_v": bus_v,
+            "current_ma": current_ma,
+            "pwr_mw": pwr_mw,
             "timestamp": datetime.now().isoformat(),
         }
 

@@ -8,54 +8,23 @@ if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
 
 from energy_system.config.config_loader import load_app_config
+from energy_system.config.env import ai_api_key, apply_dotenv, env_value
 
 
 def _pick_api_key() -> str | None:
-    # Optional: load local .env for demo convenience (ignored by git).
-    def _read_text_with_fallback(p: str) -> str:
-        try:
-            data = open(p, "rb").read()
-        except Exception:
-            return ""
-        for enc in ("utf-8-sig", "utf-8", "utf-16", "utf-16-le", "utf-16-be"):
-            try:
-                return data.decode(enc)
-            except Exception:
-                continue
-        return ""
-
-    def _load_env_file(p: str) -> None:
-        text = _read_text_with_fallback(p)
-        if not text:
-            return
-        for raw_line in text.splitlines():
-            line = raw_line.strip()
-            if not line or line.startswith("#") or line.startswith("//") or "=" not in line:
-                continue
-            k, v = line.split("=", 1)
-            k = k.strip().lstrip("\ufeff")
-            v = v.strip().strip('"').strip("'")
-            if k and v and k not in os.environ:
-                os.environ[k] = v
-
-    try:
-        _load_env_file(os.path.join(ROOT, ".env"))
-        _load_env_file(os.path.join(ROOT, "ai_workspace", "von.env"))
-    except Exception:
-        pass
-
-    return (
-        os.getenv("DEEPSEEK_API_KEY", "").strip()
-        or os.getenv("OPENAI_API_KEY", "").strip()
-        or os.getenv("AI_API_KEY", "").strip()
-        or None
+    # 复用 config 门面：.env 装载与别名链只有一份实现
+    # （此前这个脚本复制了一整份解析器 + 别名链，与 cli/run_edge.py 重复）
+    apply_dotenv(
+        os.path.join(ROOT, ".env"),
+        os.path.join(ROOT, "ai_workspace", "von.env"),
     )
+    return ai_api_key() or None
 
 
 def _key_source() -> str | None:
-    if os.getenv("DEEPSEEK_API_KEY", "").strip():
+    if env_value("DEEPSEEK_API_KEY"):
         return "deepseek"
-    if os.getenv("OPENAI_API_KEY", "").strip() or os.getenv("AI_API_KEY", "").strip():
+    if env_value("OPENAI_API_KEY") or env_value("AI_API_KEY"):
         return "openai"
     return None
 

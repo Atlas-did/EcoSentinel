@@ -15,7 +15,6 @@ Usage:
 from __future__ import annotations
 
 import argparse
-import os
 import sys
 from pathlib import Path
 
@@ -26,6 +25,7 @@ if str(_PROJECT_ROOT) not in sys.path:
 
 from energy_system.api.app import create_app
 from energy_system.config.config_loader import load_app_config
+from energy_system.config.env import cors_origins_override
 
 # ── Config ─────────────────────────────────────────────────────────
 cfg, _warnings = load_app_config()
@@ -40,9 +40,9 @@ def _resolve_cors_origins() -> list[str]:
     emitted with ``allow_credentials=True`` — the config loader already rejects
     that combination.
     """
-    env = os.getenv("ECOSENTINEL_CORS_ORIGINS", "").strip()
-    if env:
-        return [o.strip() for o in env.split(",") if o.strip()]
+    origins = cors_origins_override()
+    if origins:
+        return origins
     return list(cfg.api.cors_origins)
 
 

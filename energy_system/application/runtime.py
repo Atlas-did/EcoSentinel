@@ -7,7 +7,6 @@ in isolation. ``main.py`` re-exports this class for backward compatibility.
 
 from __future__ import annotations
 
-import os
 import time
 from datetime import datetime
 
@@ -15,6 +14,7 @@ from energy_system.application.ai_worker import AiWorker
 from energy_system.application.decision import DecisionService
 from energy_system.application.enrichment import TelemetryEnrichmentService
 from energy_system.application.scheduler import Scheduler
+from energy_system.config.env import battery_capacity_mah, battery_initial_soc
 from energy_system.core.command_dispatcher import RuleActuationController
 from energy_system.core.controller import RuleBasedController
 from energy_system.core.data_acquisition import DataAcquisition, no_data_heartbeat_fields
@@ -106,8 +106,8 @@ class EnergySystemApp:
 
         # ── Metric enrichment + AI decision ────────────────────────
         self.enrichment = TelemetryEnrichmentService(
-            battery_capacity_mah=float(os.getenv("BATTERY_CAPACITY_MAH", "10000") or 10000),
-            battery_initial_soc=float(os.getenv("BATTERY_INITIAL_SOC", "80") or 80),
+            battery_capacity_mah=battery_capacity_mah(),
+            battery_initial_soc=battery_initial_soc(),
         )
         self.decision = DecisionService(
             self.ai_advisor,

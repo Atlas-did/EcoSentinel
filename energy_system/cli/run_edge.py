@@ -17,7 +17,7 @@ import sys
 from pathlib import Path
 
 from energy_system.config.config_loader import load_app_config
-from energy_system.utils.env_loader import load_dotenv_if_present
+from energy_system.config.env import ai_api_key, apply_dotenv, env_value
 from energy_system.utils.logger import setup_logger
 
 logger = setup_logger("Main")
@@ -68,13 +68,8 @@ def _acquire_single_instance_lock(
 
 
 def resolve_api_key() -> str | None:
-    """Resolve the API key from environment variables (never from config)."""
-    return (
-        os.getenv("DEEPSEEK_API_KEY", "").strip()
-        or os.getenv("OPENAI_API_KEY", "").strip()
-        or os.getenv("AI_API_KEY", "").strip()
-        or None
-    )
+    """Resolve the API key via the config env facade (never from config files)."""
+    return ai_api_key() or None
 
 
 def run_edge(cfg=None, api_key: str | None = None) -> None:
@@ -105,11 +100,11 @@ def main(argv: list[str] | None = None) -> int:
         logger.warning(w)
 
     # Load .env files (including legacy ai_workspace/von.env)
-    load_dotenv_if_present(".env", "ai_workspace/von.env")
+    apply_dotenv(".env", "ai_workspace/von.env")
 
     api_key = resolve_api_key()
 
-    if os.getenv("DEEPSEEK_API_KEY", "").strip():
+    if env_value("DEEPSEEK_API_KEY"):
         if "openai.com" in (cfg.ai.api_base or "") and (cfg.ai.model or "").startswith("gpt-"):
             logger.warning(
                 "Detected DEEPSEEK_API_KEY but ai.api_base/model still look like OpenAI defaults. "

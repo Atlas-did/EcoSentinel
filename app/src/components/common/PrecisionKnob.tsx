@@ -49,22 +49,23 @@ export default function PrecisionKnob({
     [isDragging, value, min, max, onChange, rotation]
   );
 
+  // 稳定的 pointerup 处理器：注册与注销必须是**同一个函数引用**。
+  // 旧实现用两个内联箭头函数，removeEventListener 按引用匹配 ⇒ 静默失败，
+  // 且 handlePointerMove 随 value 变化重建 effect ⇒ 监听器在拖动中持续累积。
+  const handlePointerUp = useCallback(() => {
+    setIsDragging(false);
+    lastAngleRef.current = null;
+  }, []);
+
   useEffect(() => {
-    if (isDragging) {
-      window.addEventListener('pointermove', handlePointerMove);
-      window.addEventListener('pointerup', () => {
-        setIsDragging(false);
-        lastAngleRef.current = null;
-      });
-      return () => {
-        window.removeEventListener('pointermove', handlePointerMove);
-        window.removeEventListener('pointerup', () => {
-          setIsDragging(false);
-          lastAngleRef.current = null;
-        });
-      };
-    }
-  }, [isDragging, handlePointerMove]);
+    if (!isDragging) return;
+    window.addEventListener('pointermove', handlePointerMove);
+    window.addEventListener('pointerup', handlePointerUp);
+    return () => {
+      window.removeEventListener('pointermove', handlePointerMove);
+      window.removeEventListener('pointerup', handlePointerUp);
+    };
+  }, [isDragging, handlePointerMove, handlePointerUp]);
 
   const circumference = 2 * Math.PI * ((size * 0.42));
   const strokeDashoffset = circumference - (percent / 100) * circumference;

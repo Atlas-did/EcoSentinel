@@ -11,6 +11,7 @@ import {
   Download,
 } from 'lucide-react';
 import SensorChart from '@/components/charts/SensorChart';
+import { treesEquivalent } from '@/lib/format';
 
 type Period = 'day' | 'week' | 'month';
 
@@ -226,7 +227,7 @@ export default function EnergyAnalysisPage() {
                 </div>
               </div>
               <p className="text-xs font-mono text-slate-500 mt-4 text-center">
-                相当于种植了 {(energySummary?.carbon_reduced_kg ?? 0 / 20).toFixed(1)} 棵树的年碳吸收量
+                相当于种植了 {treesEquivalent(energySummary?.carbon_reduced_kg).toFixed(1)} 棵树的年碳吸收量
               </p>
             </div>
           </motion.div>

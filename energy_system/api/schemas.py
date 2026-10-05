@@ -76,6 +76,10 @@ class Health(BaseModel):
     self_healing_enabled: bool = False
     stale_detected: bool = False
     corrupt_records: int = 0  # additive: number of unreadable JSONL lines
+    # 可加字段：AI 工作线程计数（submitted/completed/errors/dropped_* 等）。
+    # 评审 P1 建议把它暴露出来 —— 否则"建议为什么没被采纳"只能靠翻日志猜
+    # （例如 AI_ADVICE_MAX_AGE_S 偏小会导致建议成批过期丢弃）。
+    ai_worker: dict | None = None
 
 
 class EnergySummary(BaseModel):

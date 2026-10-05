@@ -24,6 +24,7 @@ def create_app(
     log_dir: str | Path | None = None,
     cors_origins: list[str] | None = None,
     allow_credentials: bool | None = None,
+    ai_worker_stats=None,
 ) -> FastAPI:
     """Create the EcoSentinel API application.
 
@@ -83,7 +84,18 @@ def create_app(
 
     @app.get("/api/health")
     def get_health(label: str | None = None):
-        return services.health(label)
+        payload = services.health(label)
+        # 评审 P1：把 AI 工作线程计数一并暴露，便于回答"建议为什么没被采纳"
+        # （例如 AI_ADVICE_MAX_AGE_S 偏小 ⇒ 建议成批过期丢弃）。
+        # 注入口可选：未接线时该字段保持为 null，不伪造任何数字。
+        if ai_worker_stats is not None:
+            try:
+                stats = ai_worker_stats()
+            except Exception:
+                stats = None
+            if isinstance(stats, dict):
+                payload = payload.model_copy(update={"ai_worker": stats})
+        return payload
 
     @app.get("/api/simulation/params")
     def get_simulation_params():

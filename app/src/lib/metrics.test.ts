@@ -10,6 +10,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { METRICS, anomaliesOf, defaultActiveSensors, isAnomalous } from '@/lib/metrics'
+import { SNAPSHOT_ALERTS, TARGET_TEMP_C, isSnapshotAlert } from '@/lib/metrics'
 
 describe('METRICS · 覆盖与默认显示', () => {
   it('覆盖全部图表指标键', () => {
@@ -85,5 +86,39 @@ describe('异常判定 · 阈值必须同源', () => {
     const snapshot = JSON.parse(JSON.stringify(points))
     expect(anomaliesOf(points).map((p) => p.time)).toEqual(['b', 'c'])
     expect(points).toEqual(snapshot)
+  })
+})
+
+describe('SNAPSHOT_ALERTS · 快照指标阈值（含方向）', () => {
+  it('温度：高于 30 告警（方向 above）', () => {
+    expect(SNAPSHOT_ALERTS.temperature.threshold).toBe(30)
+    expect(SNAPSHOT_ALERTS.temperature.direction).toBe('above')
+    expect(isSnapshotAlert('temperature', 31)).toBe(true)
+    expect(isSnapshotAlert('temperature', 30)).toBe(false)
+    expect(isSnapshotAlert('temperature', 29)).toBe(false)
+  })
+
+  it('电量：低于 20 告警（方向 below —— 与温度相反，这正是"统一阈值"必须带方向的原因）', () => {
+    expect(SNAPSHOT_ALERTS.soc_percent.threshold).toBe(20)
+    expect(SNAPSHOT_ALERTS.soc_percent.direction).toBe('below')
+    expect(isSnapshotAlert('soc_percent', 19)).toBe(true)
+    expect(isSnapshotAlert('soc_percent', 20)).toBe(false)
+    expect(isSnapshotAlert('soc_percent', 21)).toBe(false)
+  })
+
+  it('eCO2：高于 1000 告警（与图表阈值统一后同源）', () => {
+    expect(SNAPSHOT_ALERTS.eco2.threshold).toBe(1000)
+    expect(isSnapshotAlert('eco2', 1001)).toBe(true)
+    expect(isSnapshotAlert('eco2', 999)).toBe(false)
+  })
+
+  it('缺失值不算告警（与旧实现 `latestSnapshot && ...` 语义一致）', () => {
+    expect(isSnapshotAlert('temperature', null)).toBe(false)
+    expect(isSnapshotAlert('temperature', undefined)).toBe(false)
+    expect(isSnapshotAlert('soc_percent', null)).toBe(false)
+  })
+
+  it('目标温度为单一常量（原 DashboardPage 内联的 24.5）', () => {
+    expect(TARGET_TEMP_C).toBe(24.5)
   })
 })

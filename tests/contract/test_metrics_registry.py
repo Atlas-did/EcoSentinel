@@ -195,16 +195,61 @@ class TestFrontendSingleSource(unittest.TestCase):
             self.assertEqual(offenders, [], f"{rel} 出现了阈值声明，应改为引用 lib/metrics.ts")
 
     def test_pages_do_not_hardcode_metric_keys(self):
+        """页面里不得把指标键**写死在数据访问/映射**里。
+
+        例外：把键作为**参数**传给 lib/metrics 的判定函数是正当用法
+        （如 `exceedsThreshold(a, 'temp')`、`isSnapshotAlert('eco2', ...)`），故放行这些调用行。
+        """
+        allowed_call = re.compile(r"(exceedsThreshold|isSnapshotAlert|METRICS\[)")
         for rel in self.PAGES:
             path = PROJECT_ROOT / "app" / "src" / rel
             if not path.exists():
                 continue
-            offenders = [
-                line.strip()
-                for line in path.read_text(encoding="utf-8").splitlines()
-                if self.QUOTED_KEY.search(line)
-            ]
+            offenders = []
+            for line in path.read_text(encoding="utf-8").splitlines():
+                code = re.sub(r"//.*$", "", line)
+                if self.QUOTED_KEY.search(code) and not allowed_call.search(code):
+                    offenders.append(line.strip())
             self.assertEqual(offenders, [], f"{rel} 出现了指标键字面量，应引用 lib/metrics.ts")
+
+    INLINE_COMPARISON = re.compile(
+        r"(temperature|soc_percent|temp|eco2|humidity|illuminance|power_w)"
+        r"[A-Za-z0-9_.?!\[\]' ]{0,30}?[<>]=?\s*\d"
+    )
+
+    def test_pages_do_not_inline_threshold_comparisons(self):
+        """页面里不得再出现 `latestSnapshot.temperature! > 30` 这类内联阈值比较。
+
+        扫描前先去掉注释：注释里举例说明旧代码不应算违规（这条教训在固件侧也踩过）。
+        """
+        for rel in self.PAGES:
+            path = PROJECT_ROOT / "app" / "src" / rel
+            if not path.exists():
+                continue
+            code_lines = [
+                re.sub(r"//.*$", "", line)
+                for line in path.read_text(encoding="utf-8").splitlines()
+            ]
+            offenders = [
+                line.strip() for line in code_lines if self.INLINE_COMPARISON.search(line)
+            ]
+            self.assertEqual(
+                offenders, [], f"{rel} 出现内联阈值比较，应改用 lib/metrics 的判定函数"
+            )
+
+    def test_snapshot_alert_keys_come_from_the_backend_snapshot_schema(self):
+        """快照告警表的键必须来自后端 Snapshot 字段（跨语言一致性）。"""
+        from energy_system.api import schemas
+
+        table = (PROJECT_ROOT / "app" / "src" / "lib" / "metrics.ts").read_text(encoding="utf-8")
+        block = re.search(r"SNAPSHOT_ALERTS\s*=\s*\{(?P<body>.*?)\n\}\s*as const", table, re.DOTALL)
+        self.assertIsNotNone(block, "未找到前端 SNAPSHOT_ALERTS 定义")
+        keys = set(re.findall(r"^\s{2}([a-z_]+):\s*\{", block.group("body"), re.MULTILINE))
+        self.assertTrue(keys, "SNAPSHOT_ALERTS 未解析出键")
+
+        model = getattr(schemas, "Snapshot")
+        fields = set(getattr(model, "model_fields", None) or model.__fields__)
+        self.assertEqual(sorted(keys - fields), [], "快照告警表出现了后端 Snapshot 没有的字段")
 
     def test_chart_does_not_hardcode_gradient_colors(self):
         """SensorChart 的渐变颜色必须引用 lib/metrics.ts，不得再写死十六进制。"""

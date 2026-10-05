@@ -20,6 +20,7 @@ import MetricCard from '@/components/common/MetricCard';
 import SensorChart from '@/components/charts/SensorChart';
 import TimeRangeSelector from '@/components/common/TimeRangeSelector';
 import StatusBadge from '@/components/common/StatusBadge';
+import { TARGET_TEMP_C, isSnapshotAlert } from '@/lib/metrics';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 export default function DashboardPage() {
@@ -41,7 +42,7 @@ export default function DashboardPage() {
     return () => stopAutoRefresh();
   }, []);
 
-  const targetTemp = 24.5;
+  const targetTemp = TARGET_TEMP_C;
 
   return (
     <div className="min-h-screen bg-[#020c1b] pt-16 pb-6 pr-80">
@@ -107,7 +108,7 @@ export default function DashboardPage() {
             value={latestSnapshot?.temperature ?? '--'}
             unit="°C"
             icon={<Thermometer className="w-5 h-5" />}
-            status={latestSnapshot && latestSnapshot.temperature! > 30 ? 'warning' : 'normal'}
+            status={isSnapshotAlert('temperature', latestSnapshot?.temperature) ? 'warning' : 'normal'}
             subtitle={latestSnapshot ? `目标: ${targetTemp}°C` : undefined}
             trend={latestSnapshot && latestSnapshot.temperature! > targetTemp ? 'up' : 'down'}
             delay={0}
@@ -133,7 +134,7 @@ export default function DashboardPage() {
             value={latestSnapshot?.eco2 ?? '--'}
             unit="ppm"
             icon={<Wind className="w-5 h-5" />}
-            status={latestSnapshot && latestSnapshot.eco2! > 1000 ? 'warning' : 'normal'}
+            status={isSnapshotAlert('eco2', latestSnapshot?.eco2) ? 'warning' : 'normal'}
             delay={0.15}
           />
           <MetricCard
@@ -150,7 +151,7 @@ export default function DashboardPage() {
             value={latestSnapshot?.soc_percent ?? '--'}
             unit="%"
             icon={<Battery className="w-5 h-5" />}
-            status={latestSnapshot && latestSnapshot.soc_percent! < 20 ? 'warning' : 'success'}
+            status={isSnapshotAlert('soc_percent', latestSnapshot?.soc_percent) ? 'warning' : 'success'}
             delay={0.25}
           />
         </section>

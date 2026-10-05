@@ -146,6 +146,55 @@ export const METRICS: Record<MetricKey, MetricSpec> = {
   },
 }
 
+/** 快照指标（latestSnapshot 命名空间）的告警阈值。
+ *
+ * 注意与上表的**命名空间差异**：快照用 `temperature`，图表用 `temp`（同一物理量、两套线上名，
+ * 后端 registry 已把 `temp` 登记为别名）。因此这里单独一段，并由契约测试保证键来自后端 Snapshot。
+ */
+export interface SnapshotAlert {
+  label: string
+  unit: string
+  threshold: number
+  direction: 'above' | 'below'
+  note: string
+}
+
+export const SNAPSHOT_ALERTS = {
+  temperature: {
+    label: '温度',
+    unit: '°C',
+    threshold: 30,
+    direction: 'above',
+    note: '室内温度高于 30°C 需要关注（原 DashboardPage 内联 > 30）',
+  },
+  soc_percent: {
+    label: '电量',
+    unit: '%',
+    threshold: 20,
+    direction: 'below',
+    note: '电量低于 20% 需要充电（原 DashboardPage 内联 < 20，方向相反）',
+  },
+  eco2: {
+    label: 'eCO2',
+    unit: 'ppm',
+    threshold: 1000,
+    direction: 'above',
+    note: '与图表阈值统一为 1000ppm（原 DashboardPage 内联 > 1000）',
+  },
+} as const satisfies Record<string, SnapshotAlert>
+
+export type SnapshotAlertKey = keyof typeof SNAPSHOT_ALERTS
+
+/** 业务目标温度（原 DashboardPage 内联常量 targetTemp） */
+export const TARGET_TEMP_C = 24.5
+
+/** 按方向判定快照指标是否告警；缺失值不算告警。 */
+export function isSnapshotAlert(key: SnapshotAlertKey, value: number | null | undefined): boolean {
+  if (typeof value !== 'number') return false
+  const { threshold, direction } = SNAPSHOT_ALERTS[key]
+  return direction === 'above' ? value > threshold : value < threshold
+}
+
 /** 实时页按顺序展示的指标 */
 export const REALTIME_METRICS: MetricKey[] = ['temp', 'humidity', 'illuminance', 'eco2', 'power_w']
 
@@ -156,13 +205,19 @@ export function defaultActiveSensors(): Record<string, boolean> {
   )
 }
 
+/** 某指标在该点上是否超过阈值（逐条异常文案用；不涉及 anomalyWatch）。 */
+export function exceedsThreshold(point: ChartDataPoint, key: MetricKey): boolean {
+  const spec = METRICS[key]
+  if (spec.threshold === null) return false
+  const value = point[key]
+  return typeof value === 'number' && value > spec.threshold
+}
+
 /** 只要阈值与监视开关都命中，就算一个异常点（阈值取自本表，不再各写一份）。 */
 export function isAnomalous(point: ChartDataPoint): boolean {
   return (Object.keys(METRICS) as MetricKey[]).some((key) => {
     const spec = METRICS[key]
-    if (!spec.anomalyWatch || spec.threshold === null) return false
-    const value = point[key]
-    return typeof value === 'number' && value > spec.threshold
+    return spec.anomalyWatch && exceedsThreshold(point, key)
   })
 }
 

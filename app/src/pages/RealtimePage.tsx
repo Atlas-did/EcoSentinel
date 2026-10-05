@@ -6,7 +6,7 @@ import {
   AlertTriangle,
 } from 'lucide-react';
 import SensorChart from '@/components/charts/SensorChart';
-import { METRICS, REALTIME_METRICS, anomaliesOf, defaultActiveSensors } from '@/lib/metrics';
+import { METRICS, REALTIME_METRICS, anomaliesOf, defaultActiveSensors, exceedsThreshold } from '@/lib/metrics';
 import TimeRangeSelector from '@/components/common/TimeRangeSelector';
 import StatusBadge from '@/components/common/StatusBadge';
 import type { TimeRange } from '@/types';
@@ -175,11 +175,11 @@ export default function RealtimePage() {
                 <div key={i} className="flex items-center gap-3 text-xs font-mono">
                   <div className="w-1.5 h-1.5 rounded-full bg-red-400" />
                   <span className="text-slate-500">{a.time}</span>
-                  {a.temp && a.temp > 30 && (
-                    <span className="text-red-400">温度异常: {a.temp.toFixed(1)}°C</span>
+                  {exceedsThreshold(a, 'temp') && (
+                    <span className="text-red-400">温度异常: {a.temp!.toFixed(1)}°C</span>
                   )}
-                  {a.eco2 && a.eco2 > 1000 && (
-                    <span className="text-red-400">CO2超标: {a.eco2.toFixed(0)}ppm</span>
+                  {exceedsThreshold(a, 'eco2') && (
+                    <span className="text-red-400">CO2超标: {a.eco2!.toFixed(0)}ppm</span>
                   )}
                 </div>
               ))}

@@ -256,6 +256,16 @@ class TestFrontendSingleSource(unittest.TestCase):
     #: 图表**结构色**（网格线 / 坐标轴 / 刻度文字）—— 与任何指标无关，允许就地写字面量
     CHART_CHROME_COLORS = {"#1e293b", "#334155", "#475569"}
 
+    def test_no_hardcoded_online_status(self):
+        """硬件端口/传感器的"在线"不得写死（评审 §1.3 第 3 条：不展示无来源的状态）。
+
+        实测 active={true} 只出现在 DashboardPage（7 处），因此这条门禁精确且不会误伤别处。
+        """
+        dash = (PROJECT_ROOT / "app/src/pages/DashboardPage.tsx").read_text(encoding="utf-8")
+        self.assertNotIn(
+            "active={true}", dash, "DashboardPage 又把端口在线状态写死成 active={true}"
+        )
+
     def test_frontend_has_no_stale_savings_claim(self):
         """前端不得再出现**已作废**的节能率（29.6% / 29.8% / 29.9%）。
 

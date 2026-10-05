@@ -42,6 +42,10 @@ export default function DashboardPage() {
     return () => stopAutoRefresh();
   }, []);
 
+  // 端口/传感器的"在线"必须来自**真实快照**，不能写死 true（评审 §1.3 第 3 条：
+  // 界面不能展示没有数据来源的状态）。没有任何采样的字段一律视为离线。
+  const hasData = (value: unknown): boolean => value != null;
+
   const targetTemp = TARGET_TEMP_C;
 
   return (
@@ -67,10 +71,10 @@ export default function DashboardPage() {
                 transition={{ duration: 3, repeat: Infinity, ease: 'linear' }}
               />
             </svg>
-            <HardwarePort label="TMP-01" active={true} />
-            <HardwarePort label="HUM-02" active={true} />
-            <HardwarePort label="LUX-03" active={true} />
-            <HardwarePort label="ECO2" active={true} />
+            <HardwarePort label="TMP-01" active={hasData(latestSnapshot?.temperature)} />
+            <HardwarePort label="HUM-02" active={hasData(latestSnapshot?.humidity)} />
+            <HardwarePort label="LUX-03" active={hasData(latestSnapshot?.illuminance)} />
+            <HardwarePort label="ECO2" active={hasData(latestSnapshot?.eco2)} />
           </div>
 
           {/* System Status */}
@@ -95,9 +99,9 @@ export default function DashboardPage() {
 
           {/* Power Ports */}
           <div className="col-span-1 bg-slate-900/50 border border-slate-800 rounded-2xl p-4 flex items-center justify-around">
-            <HardwarePort label="AC-IN" active={true} subLabel="220V" />
-            <HardwarePort label="PV-ARR" active={true} subLabel="48V" />
-            <HardwarePort label="BAT" active={true} subLabel={`${latestSnapshot?.soc_percent?.toFixed(0) ?? '--'}%`} />
+            <HardwarePort label="AC-IN" active={hasData(latestSnapshot?.bus_v)} subLabel="220V" />
+            <HardwarePort label="PV-ARR" active={hasData(latestSnapshot?.solar_power_w)} subLabel="48V" />
+            <HardwarePort label="BAT" active={hasData(latestSnapshot?.soc_percent)} subLabel={`${latestSnapshot?.soc_percent?.toFixed(0) ?? '--'}%`} />
           </div>
         </motion.section>
 

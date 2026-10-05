@@ -257,7 +257,7 @@ class TestFrontendSingleSource(unittest.TestCase):
     CHART_CHROME_COLORS = {"#1e293b", "#334155", "#475569"}
 
     def test_frontend_has_no_stale_savings_claim(self):
-        """前端不得再出现**已作废**的节能率（29.6% / 29.8%）。
+        """前端不得再出现**已作废**的节能率（29.6% / 29.8% / 29.9%）。
 
         那两个数出自热模型发散时的无效仿真（真实值 17.6%），修好积分器后已全局更正；
         若某处 UI 还印着旧数，就等于对外宣称一个已知错误的结论（评审 §1.3 第 3 条）。
@@ -267,7 +267,7 @@ class TestFrontendSingleSource(unittest.TestCase):
         offenders = []
         for path in sorted(root.rglob("*.tsx")):
             text = path.read_text(encoding="utf-8")
-            for stale in ("29.6%", "29.8%"):
+            for stale in ("29.6%", "29.8%", "29.9%"):
                 if stale in text:
                     offenders.append(f"{path.relative_to(PROJECT_ROOT)} 含 {stale}")
         self.assertEqual(offenders, [], "前端仍印着已作废的节能率：" + "; ".join(offenders))

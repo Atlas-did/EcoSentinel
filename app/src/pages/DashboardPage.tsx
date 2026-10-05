@@ -359,14 +359,11 @@ export default function DashboardPage() {
 
             <TabsContent value="logs" className="mt-0">
               <div className="bg-black rounded-lg p-4 font-mono text-xs space-y-1 max-h-48 overflow-y-auto border border-slate-800">
-                <p className="text-slate-600">// System Logs initialized...</p>
-                <p className="text-emerald-500/80">[10:42:01] Fan array speed set to 2400 RPM.</p>
-                <p className="text-cyan-500/80">[10:42:15] Thermal lock engaged. Target: 24.5°C.</p>
-                <p className="text-amber-500/80">[10:43:00] Humidity drop detected in Zone C.</p>
-                <p className="text-emerald-500/80">[10:43:30] AI candidate accepted: 温度微调策略</p>
-                <p className="text-slate-500/80">[10:44:00] Sampling cycle complete. 6 sensors read.</p>
-                <p className="text-cyan-500/80">[10:44:15] Energy saving rate: 29.9%</p>
-                <p className="text-emerald-500/80">[10:45:00] Self-healing check: all systems nominal.</p>
+                <p className="text-slate-600">// 事件流占位：接入串口/日志仓储后在此显示真实事件</p>
+                <p className="text-slate-500">
+                  说明：本面板此前展示的 8 行「日志」是**硬编码的演示文本**（其中还写着一个已作废的节能率），
+                  已按评审 §1.3 第 3 条移除 —— 本项目不做没有数据来源的日志展示。
+                </p>
               </div>
             </TabsContent>
 

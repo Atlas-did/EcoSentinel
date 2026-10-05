@@ -188,6 +188,7 @@ export default function EnergyAnalysisPage() {
                 showHumidity={false}
                 showBaseline
                 showSaving
+                cumulative
                 height={260}
               />
             ) : (

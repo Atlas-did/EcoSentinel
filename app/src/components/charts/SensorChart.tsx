@@ -23,6 +23,8 @@ interface SensorChartProps {
   showSolar?: boolean;
   showBaseline?: boolean;
   showSaving?: boolean;
+  /** true 时基准/节省系列绑定 `*_cum`（累计电量），而不是逐点功率（评审 P1：算完没人用） */
+  cumulative?: boolean;
   showComfort?: boolean;
   height?: number;
 }
@@ -59,6 +61,7 @@ export default function SensorChart({
   showSolar = false,
   showBaseline = false,
   showSaving = false,
+  cumulative = false,
   showComfort = false,
   height = 300,
 }: SensorChartProps) {
@@ -183,8 +186,8 @@ export default function SensorChart({
         {showBaseline && (
           <Area
             type="monotone"
-            dataKey="baseline_power"
-            name="基线功率"
+            dataKey={cumulative ? 'baseline_cum' : 'baseline_power'}
+            name={cumulative ? '基线累计电量' : '基线功率'}
             stroke="#94a3b8"
             strokeWidth={1.5}
             strokeDasharray="5 5"
@@ -195,8 +198,8 @@ export default function SensorChart({
         {showSaving && (
           <Area
             type="monotone"
-            dataKey="saving_power"
-            name="节能功率"
+            dataKey={cumulative ? 'saving_cum' : 'saving_power'}
+            name={cumulative ? '节能累计电量' : '节能功率'}
             stroke="#10b981"
             strokeWidth={2}
             fillOpacity={1}

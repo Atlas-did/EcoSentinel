@@ -76,4 +76,20 @@ describe('SensorChart · 渐变 id 与颜色', () => {
     expect(ids.some((id) => id.endsWith('-colorTemp'))).toBe(false)
     expect(ids.some((id) => id.endsWith('-colorPower'))).toBe(false)
   })
+
+  it('cumulative 模式必须把基准/节省系列改绑 *_cum（评审 P1：此前算完没人用）', () => {
+    const cumData = [
+      { time: '10:00', baseline_cum: 1.5, saving_cum: 1.0 },
+      { time: '10:01', baseline_cum: 3.0, saving_cum: 2.0 },
+    ]
+    render(<SensorChart data={cumData} showBaseline showSaving cumulative />)
+    // 图例文案来自 name 属性：累计模式下必须换成"累计电量"，否则图上画的是逐点功率却标成累计
+    expect(document.body.textContent).toContain('基线累计电量')
+    expect(document.body.textContent).toContain('节能累计电量')
+
+    cleanup()
+    render(<SensorChart data={DATA} showBaseline showSaving />)
+    expect(document.body.textContent).toContain('基线功率')
+    expect(document.body.textContent).not.toContain('基线累计电量')
+  })
 })

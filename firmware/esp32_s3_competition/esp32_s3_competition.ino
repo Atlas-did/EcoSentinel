@@ -116,6 +116,10 @@ void setup() {
 #endif
 
   Serial.println("ESP32 Ready");
+
+  // 上板验收令牌（见 protocol.h 的 printSelfTest）：让同伴或 CI 能**自动**判定
+  // "固件真的跑起来了、关键子系统就绪"，由 scripts/firmware_acceptance.py 读取并给出退出码。
+  printSelfTest();
 }
 
 void loop() {

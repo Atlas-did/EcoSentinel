@@ -250,6 +250,37 @@ static void replyI2cScanJson() {
 // IR（可选）：
 // - IR_NEC <hex> <bits>
 //
+// 上板验收令牌 —— 供 scripts/firmware_acceptance.py 判定"固件已启动、关键子系统就绪"。
+//
+// 语义: "selftest":"pass" 只表示 setup() 完整执行完; 具体哪些子系统可用由各布尔字段给出,
+// 传感器缺失**不算失败**(由验收脚本用 --require 决定哪些是必须的)。
+// 这条令牌解决的是"同伴拿板子后如何自动判定通过", 而不是替人做硬件判断。
+static void printSelfTest() {
+  Serial.print("{\"selftest\":\"pass\",\"token\":\"ECO_SELFTEST_PASS\"");
+  Serial.print(",\"boot\":");         Serial.print(bootCount);
+  Serial.print(",\"i2c_recover\":");  Serial.print(i2cRecoverCount);
+  Serial.print(",\"have_dht\":");     Serial.print(HAVE_DHT ? "true" : "false");
+  Serial.print(",\"have_sgp30\":");   Serial.print(HAVE_SGP30 ? "true" : "false");
+  Serial.print(",\"have_tft\":");     Serial.print(HAVE_TFT ? "true" : "false");
+  Serial.print(",\"have_touch\":");   Serial.print(HAVE_TOUCH ? "true" : "false");
+  Serial.print(",\"have_ina219\":");  Serial.print(HAVE_INA219 ? "true" : "false");
+  Serial.print(",\"bh1750\":");       Serial.print(bh1750Ok ? "true" : "false");
+  Serial.print(",\"sgp30\":");        Serial.print(sensors.sgpOk ? "true" : "false");
+  Serial.print(",\"ina219\":");       Serial.print(sensors.inaOk ? "true" : "false");
+  Serial.print(",\"solar_ina219\":"); Serial.print(sensors.solarInaOk ? "true" : "false");
+  Serial.print(",\"relay\":true,\"buzzer\":true,\"stepper\":true");
+#ifdef ESP_ARDUINO_VERSION_MAJOR
+  Serial.print(",\"esp32_core\":\"");
+  Serial.print(ESP_ARDUINO_VERSION_MAJOR);
+  Serial.print(".");
+  Serial.print(ESP_ARDUINO_VERSION_MINOR);
+  Serial.print(".");
+  Serial.print(ESP_ARDUINO_VERSION_PATCH);
+  Serial.print("\"");
+#endif
+  Serial.println("}");
+}
+
 static void handleCommand(String line) {
   line.trim();
   if (line.length() == 0) return;
@@ -373,6 +404,15 @@ static void handleCommand(String line) {
     return;
   }
 #endif
+
+  // 诊断 / 验收命令 —— replySensorsJson / replyStateJson / replyPinMapJson / replyI2cScanJson
+  // 此前**已实现却无人分发**, 于是 scripts/hardware_autodiag.py 文档里写的
+  // GET_STATE / READ_SENSORS / PINMAP / I2C_SCAN 永远收不到应答(只有被动遥测)。
+  if (line.startsWith("GET_STATE"))    { replyStateJson();   return; }
+  if (line.startsWith("READ_SENSORS")) { replySensorsJson(); return; }
+  if (line.startsWith("PINMAP"))       { replyPinMapJson();  return; }
+  if (line.startsWith("I2C_SCAN"))     { replyI2cScanJson(); return; }
+  if (line.startsWith("SELFTEST"))     { printSelfTest();    return; }
 
   replyError("UNKNOWN_CMD");
 }

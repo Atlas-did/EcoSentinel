@@ -66,7 +66,7 @@ export default function SideNav() {
                   transition={{ type: 'spring', stiffness: 400, damping: 30 }}
                 />
               )}
-              <Icon className="w-4.5 h-4.5 flex-shrink-0 relative z-10" />
+              <Icon className="w-4 h-4 flex-shrink-0 relative z-10" />
               {sidebarOpen && (
                 <div className="relative z-10 text-left">
                   <div className="text-xs font-medium">{item.label}</div>

@@ -7,6 +7,7 @@ metric pipeline can be exercised in isolation from hardware and logging.
 from __future__ import annotations
 
 from energy_system.algorithms.comfort_eval import evaluate_comfort
+from energy_system.domain.telemetry import set_metric
 from energy_system.power.energy_accounting import BatterySOC, EnergyAccumulator
 from energy_system.utils.helpers import pick
 
@@ -34,21 +35,25 @@ class TelemetryEnrichmentService:
         )
 
     def enrich(self, sensor_data: dict) -> dict:
-        """Enrich ``sensor_data`` in place with comfort/energy/soc fields."""
+        """Enrich ``sensor_data`` in place with comfort/energy/soc fields.
+
+        写指标一律走 ``set_metric``：键名拼错会**立刻抛错**，而不是静默多出一个
+        没人认识的字段（旧代码的字面量赋值会一路无声地流到日志与 API）。
+        """
         temp_c = pick(sensor_data, ["temperature", "temp"], default=25.0)
         hum_pct = pick(sensor_data, ["humidity", "hum"], default=50.0)
-        sensor_data["comfort_score"] = evaluate_comfort(temp_c, hum_pct)
+        set_metric(sensor_data, "comfort_score", evaluate_comfort(temp_c, hum_pct))
 
         stats = self.acc.update(sensor_data)
         if stats.power_w is not None:
-            sensor_data["power_w"] = stats.power_w
-        sensor_data["energy_wh"] = stats.energy_wh
+            set_metric(sensor_data, "power_w", stats.power_w)
+        set_metric(sensor_data, "energy_wh", stats.energy_wh)
 
         solar_stats = self.solar_acc.update(sensor_data)
         if solar_stats.power_w is not None:
-            sensor_data["solar_power_w"] = solar_stats.power_w
-        sensor_data["solar_energy_wh"] = solar_stats.energy_wh
+            set_metric(sensor_data, "solar_power_w", solar_stats.power_w)
+        set_metric(sensor_data, "solar_energy_wh", solar_stats.energy_wh)
 
         soc_stats = self.battery_soc.update_from_sample(sensor_data)
-        sensor_data["soc_percent"] = soc_stats.soc_percent
+        set_metric(sensor_data, "soc_percent", soc_stats.soc_percent)
         return sensor_data

@@ -22,7 +22,6 @@ vi.mock('@/services/api', async (importOriginal) => {
     fetchEnergySummary: vi.fn(),
     fetchHealth: vi.fn(),
     fetchSimulationParams: vi.fn(),
-    isBackendAvailable: vi.fn(),
   }
 })
 
@@ -31,8 +30,8 @@ import { useAppStore } from '@/store/useAppStore'
 
 const INITIAL = useAppStore.getState()
 
-/** 让全部端点不可达（触发 store 的 mock 兜底），并设置"后端可用性"开关。 */
-function backend(up: boolean) {
+/** 全部端点失败 ⇒ 按整轮聚合应判为"离线"并回落 mock。 */
+function failAll() {
   vi.mocked(api.fetchSnapshot).mockRejectedValue(new Error('backend down'))
   vi.mocked(api.fetchChart).mockRejectedValue(new Error('backend down'))
   vi.mocked(api.fetchAICandidates).mockRejectedValue(new Error('backend down'))
@@ -40,7 +39,24 @@ function backend(up: boolean) {
   vi.mocked(api.fetchEnergySummary).mockRejectedValue(new Error('backend down'))
   vi.mocked(api.fetchHealth).mockRejectedValue(new Error('backend down'))
   vi.mocked(api.fetchSimulationParams).mockRejectedValue(new Error('backend down'))
-  vi.mocked(api.isBackendAvailable).mockReturnValue(up)
+}
+
+/** 6 个端点成功、只有 chart 失败：后端其实是活的。 */
+function oneEndpointFails() {
+  failAll()
+  vi.mocked(api.fetchSnapshot).mockResolvedValue({} as never)
+  vi.mocked(api.fetchAICandidates).mockResolvedValue([{}] as never)
+  vi.mocked(api.fetchResilienceEvents).mockResolvedValue([{}] as never)
+  vi.mocked(api.fetchEnergySummary).mockResolvedValue({} as never)
+  vi.mocked(api.fetchHealth).mockResolvedValue({} as never)
+  vi.mocked(api.fetchSimulationParams).mockResolvedValue({} as never)
+}
+
+/** 全部端点成功。 */
+function succeedAll() {
+  failAll()
+  oneEndpointFails()
+  vi.mocked(api.fetchChart).mockResolvedValue([{}] as never)
 }
 
 beforeEach(() => {
@@ -54,7 +70,7 @@ afterEach(() => {
 
 describe('refreshData · 离线兜底（必须保留）', () => {
   it('后端不可达时回落到 mock 数据，并把 backendOnline 置为 false', async () => {
-    backend(false)
+    failAll()
     await useAppStore.getState().refreshData()
 
     const s = useAppStore.getState()
@@ -67,7 +83,7 @@ describe('refreshData · 离线兜底（必须保留）', () => {
   })
 
   it('连接态只在**变化**时提示：连续两次离线只弹一次 toast', async () => {
-    backend(false)
+    failAll()
     await useAppStore.getState().refreshData()
     const afterFirst = useAppStore.getState().toasts.length
     expect(afterFirst).toBe(1)
@@ -78,11 +94,11 @@ describe('refreshData · 离线兜底（必须保留）', () => {
   })
 
   it('从离线恢复为在线时再提示一次', async () => {
-    backend(false)
+    failAll()
     await useAppStore.getState().refreshData()
     expect(useAppStore.getState().backendOnline).toBe(false)
 
-    backend(true)
+    succeedAll()
     await useAppStore.getState().refreshData()
     const s = useAppStore.getState()
     expect(s.backendOnline).toBe(true)
@@ -140,7 +156,7 @@ describe('toast 生命周期与其余 UI 动作', () => {
   })
 
   it('setTimeRange 立即切换区间与图表数据（不等待网络）', async () => {
-    backend(false)
+    failAll()
     useAppStore.getState().setTimeRange('5m')
     const s = useAppStore.getState()
     expect(s.selectedTimeRange).toBe('5m')
@@ -159,5 +175,58 @@ describe('toast 生命周期与其余 UI 动作', () => {
     expect(after.days).toBe(7)
     // 未指定的字段必须保留（局部合并语义）
     expect(after).toEqual({ ...original, days: 7 })
+  })
+})
+
+describe('M6.5 · 轮询可靠性不变量', () => {
+  it('慢后端下不叠批次：在途期间的第二次 refreshData 直接返回', async () => {
+    let release: (value: unknown) => void = () => {}
+    const gate = new Promise((resolve) => {
+      release = resolve
+    })
+    failAll()
+    vi.mocked(api.fetchSnapshot).mockReturnValue(gate as never)
+
+    const first = useAppStore.getState().refreshData()
+    const second = useAppStore.getState().refreshData() // 应被去重
+
+    expect(api.fetchSnapshot).toHaveBeenCalledTimes(1)
+
+    release({})
+    await Promise.all([first, second])
+    // 去重不应把状态卡在"刷新中"
+    expect(useAppStore.getState().isRefreshing).toBe(false)
+  })
+
+  it('单个端点失败**不算**离线（旧实现会误报"后端未连接"并每 3s 抖 toast）', async () => {
+    oneEndpointFails()
+    await useAppStore.getState().refreshData()
+
+    const s = useAppStore.getState()
+    expect(s.backendOnline).toBe(true)
+    expect(s.toasts.filter((t) => t.type === 'warning')).toHaveLength(0)
+  })
+
+  it('全部端点失败才判离线，且只提示一次', async () => {
+    failAll()
+    await useAppStore.getState().refreshData()
+    expect(useAppStore.getState().backendOnline).toBe(false)
+
+    const before = useAppStore.getState().toasts.length
+    await useAppStore.getState().refreshData()
+    expect(useAppStore.getState().toasts.length).toBe(before)
+  })
+
+  it('setTimeRange 只拉图表端点，不重拉另外 6 个', async () => {
+    succeedAll()
+    useAppStore.getState().setTimeRange('5m')
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(api.fetchChart).toHaveBeenCalledTimes(1)
+    expect(api.fetchSnapshot).not.toHaveBeenCalled()
+    expect(api.fetchHealth).not.toHaveBeenCalled()
+    expect(api.fetchResilienceEvents).not.toHaveBeenCalled()
+    expect(useAppStore.getState().selectedTimeRange).toBe('5m')
   })
 })

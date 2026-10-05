@@ -21,9 +21,12 @@ import type {
 
 // ── Config ────────────────────────────────────────────────────────
 const API_BASE = '/api'; // proxied to backend via vite.config.ts
-const REQUEST_TIMEOUT_MS = 5000;
 
-let _backendAvailable: boolean | null = null;
+/**
+ * 单次请求超时。**必须小于轮询间隔（3000ms）**，否则慢后端会让批次重叠
+ * （旧值 5000ms > 3000ms，实测会产生重叠请求）。
+ */
+const REQUEST_TIMEOUT_MS = 2500;
 
 async function apiGet<T>(path: string, params?: Record<string, string>): Promise<T | null> {
   const url = new URL(`${API_BASE}${path}`, window.location.origin);
@@ -37,18 +40,12 @@ async function apiGet<T>(path: string, params?: Record<string, string>): Promise
   try {
     const res = await fetch(url.toString(), { signal: controller.signal });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    _backendAvailable = true;
     return (await res.json()) as T;
   } catch {
-    _backendAvailable = false;
-    return null;
+    return null; // null = 本次请求失败；**连不连得上**由调用方按整轮结果聚合判定
   } finally {
     clearTimeout(timer);
   }
-}
-
-export function isBackendAvailable(): boolean | null {
-  return _backendAvailable;
 }
 
 // ── Live API calls ────────────────────────────────────────────────

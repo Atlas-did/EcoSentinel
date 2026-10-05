@@ -76,7 +76,12 @@ class LogManager:
         append_jsonl(str(self.incidents_path), event)
 
     def update_daily_energy(self, data: dict) -> None:
-        """Write a daily summary JSON file (no cross-restart accumulation).
+        """把**当日累计**电量写入摘要文件，进程重启后继续累加。
+
+        历史：旧实现每次用"当前进程内的累计量"**覆盖**文件（原注释直言 "no cross-restart
+        accumulation"）⇒ 进程一重启，当日电量就归零（评审 P1）。
+        现在：本进程当日**首次**写入时先读既有文件，把它当作"重启前的基线"，再叠加本进程累计量；
+        写入用 tmp + replace 原子替换，避免留下半截 JSON。
 
         File: logs/daily_energy_<run_label>_YYYY-MM-DD.json
         """
@@ -92,17 +97,35 @@ class LogManager:
             solar_wh_f = float(solar_wh) if isinstance(solar_wh, (int, float)) else 0.0
             soc_f = round(float(soc), 2) if isinstance(soc, (int, float)) else None
 
+            # 每个进程只在当日首次写入时取一次基线（按日期记，跨天自动重置）
+            if getattr(self, "_daily_baseline_date", None) != d:
+                base_load, base_solar = 0.0, 0.0
+                try:
+                    prev = json.loads(path.read_text(encoding="utf-8"))
+                    base_load = float(prev.get("load_energy_wh") or 0.0)
+                    base_solar = float(prev.get("solar_energy_wh") or 0.0)
+                except Exception:
+                    pass
+                self._daily_baseline_date = d
+                self._daily_baseline = (base_load, base_solar)
+
+            base_load, base_solar = self._daily_baseline
+            total_load = round(base_load + load_wh_f, 3)
+            total_solar = round(base_solar + solar_wh_f, 3)
+
             obj = {
                 "date": d,
                 "run_label": self.run_label,
                 "updated_at": datetime.now().isoformat(),
-                "load_energy_wh": round(load_wh_f, 3),
-                "solar_energy_wh": round(solar_wh_f, 3),
-                "net_energy_wh": round(load_wh_f - solar_wh_f, 3),
+                "load_energy_wh": total_load,
+                "solar_energy_wh": total_solar,
+                "net_energy_wh": round(total_load - total_solar, 3),
                 "soc_percent": soc_f,
                 "last_power_w": data.get("power_w"),
                 "last_solar_power_w": data.get("solar_power_w"),
             }
-            path.write_text(json.dumps(obj, ensure_ascii=False, indent=2), encoding="utf-8")
+            tmp = path.with_name(path.name + ".tmp")
+            tmp.write_text(json.dumps(obj, ensure_ascii=False, indent=2), encoding="utf-8")
+            tmp.replace(path)  # 原子替换：写到一半也不会留下半截 JSON
         except Exception:
             return

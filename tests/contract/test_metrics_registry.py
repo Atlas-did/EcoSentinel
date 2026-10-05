@@ -256,6 +256,18 @@ class TestFrontendSingleSource(unittest.TestCase):
     #: 图表**结构色**（网格线 / 坐标轴 / 刻度文字）—— 与任何指标无关，允许就地写字面量
     CHART_CHROME_COLORS = {"#1e293b", "#334155", "#475569"}
 
+    def test_no_fabricated_hardware_in_ui(self):
+        """界面不得展示本项目**并不存在**的硬件（评审 §1.3 第 3 条）。
+
+        实测固件执行器是继电器 + 蜂鸣器 + 步进窗帘（无 PWM/风扇），而 Dashboard 侧栏曾显示
+        “Fan Speed 2400 RPM”。这类展示比"假数据"更糟：它描述的是一个不存在的设备。
+        """
+        dash = (PROJECT_ROOT / "app/src/pages/DashboardPage.tsx").read_text(encoding="utf-8")
+        for forbidden in ("RPM", "Fan Speed"):
+            self.assertNotIn(
+                forbidden, dash, f"DashboardPage 又出现了不存在的硬件展示：{forbidden}"
+            )
+
     def test_no_hardcoded_online_status(self):
         """硬件端口/传感器的"在线"不得写死（评审 §1.3 第 3 条：不展示无来源的状态）。
 

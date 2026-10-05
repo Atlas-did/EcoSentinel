@@ -424,26 +424,20 @@ export default function DashboardPage() {
           size={180}
         />
 
-        {/* Fan Speed */}
+        {/* 执行器说明（原为风扇转速展示，已按评审 §1.3 第 3 条移除） */}
         <div className="w-full space-y-3">
-          <div className="flex justify-between text-xs font-mono text-slate-400 uppercase tracking-wider">
-            <span className="flex items-center gap-1.5">
-              <Activity className="w-3 h-3" />
-              Fan Speed
-            </span>
-            <span className="text-cyan-400">85%</span>
-          </div>
-          <div className="h-3 bg-slate-800 rounded-full overflow-hidden border border-slate-700/50">
-            <motion.div
-              className="h-full bg-gradient-to-r from-emerald-600 to-emerald-400"
-              initial={{ width: 0 }}
-              animate={{ width: '85%' }}
-              transition={{ duration: 1, delay: 0.5 }}
-              style={{ boxShadow: '0 0 15px rgba(52, 211, 153, 0.4)' }}
-            />
-          </div>
-          <div className="text-[10px] font-mono text-slate-600 text-right">
-            2400 RPM
+          <div className="w-full space-y-2">
+            <div className="flex justify-between text-xs font-mono text-slate-400 uppercase tracking-wider">
+              <span className="flex items-center gap-1.5">
+                <Activity className="w-3 h-3" />
+                执行器
+              </span>
+              <span className="text-slate-500">继电器 / 蜂鸣器 / 步进窗帘</span>
+            </div>
+            <div className="text-[10px] font-mono text-slate-600 leading-relaxed">
+              本硬件没有风扇与 PWM；此前这里显示的风扇转速与占空比属演示文本，已按评审 §1.3 第 3 条移除
+              —— 本项目不做没有数据来源的状态展示。
+            </div>
           </div>
         </div>
 

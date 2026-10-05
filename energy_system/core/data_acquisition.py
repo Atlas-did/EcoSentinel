@@ -1,7 +1,12 @@
 """Data acquisition coordinator for EnergySystemApp.
 
-Handles reading sensor data from hardware (SerialBridge) or generating
-mock data via the simulation module when hardware is unavailable.
+Handles reading sensor data from hardware (SerialBridge), or from a **mock
+generator injected by the composition root** when hardware is unavailable.
+
+Note: this module deliberately does **not** import the simulation layer. It used to
+lazily import ``simulation.data_generator`` inside a method, which created a package
+cycle (core -> simulation -> core). The generator is now passed in — see
+``application/runtime.py`` (the composition root) and ``tests/contract/test_layering.py``.
 """
 
 import logging
@@ -19,17 +24,17 @@ class DataAcquisition:
         self,
         use_hardware: bool = False,
         serial_bridge: Any = None,
+        mock_generator: Any = None,
     ) -> None:
         self.use_hardware = use_hardware
         self.serial_bridge = serial_bridge
+        self._mock_generator = mock_generator
         self._env_gen = None  # lazy init for mock mode
 
     def _get_mock_generator(self) -> Any:
-        """Lazily create and return an EnvironmentGenerator for mock data."""
+        """Return the injected mock generator (None when none was provided)."""
         if self._env_gen is None:
-            from energy_system.simulation.data_generator import EnvironmentGenerator
-
-            self._env_gen = EnvironmentGenerator(seed=None)  # random seed per run
+            self._env_gen = self._mock_generator
         return self._env_gen
 
     def read(self) -> dict | None:
@@ -53,14 +58,21 @@ class DataAcquisition:
             logger.warning(f"Sensor read failed: {e}")
             return None
 
-    def _read_mock(self) -> dict:
-        """Generate realistic mock data using the simulation environment generator.
+    def _read_mock(self) -> dict | None:
+        """Generate mock data from the injected generator.
 
-        Uses EnvironmentGenerator to produce time-correlated random walk values
-        instead of hardcoded constants. This provides more realistic dashboard
-        testing when hardware is unavailable.
+        The generator produces time-correlated random-walk values instead of
+        hardcoded constants, which makes the dashboard realistic when no hardware
+        is attached. When nothing was injected we return None (= "no sample"), so
+        the caller's no-data path runs instead of fabricating readings.
         """
         gen = self._get_mock_generator()
+        if gen is None:
+            logger.warning(
+                "No mock generator injected; returning no sample. "
+                "Inject simulation.data_generator.EnvironmentGenerator at the composition root."
+            )
+            return None
         now_ts = time.time()
         T_out, I_solar, hour = gen.generate(now_ts, use_random_walk=True)
         humidity = gen.generate_humidity(now_ts, use_random_walk=True)

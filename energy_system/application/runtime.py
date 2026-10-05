@@ -21,6 +21,7 @@ from energy_system.core.data_acquisition import DataAcquisition, no_data_heartbe
 from energy_system.core.log_manager import LogManager
 from energy_system.hardware.serial_bridge import SerialBridge
 from energy_system.resilience.orchestrator import ResilienceOrchestrator
+from energy_system.simulation.data_generator import EnvironmentGenerator
 from energy_system.utils.file_io import append_jsonl
 from energy_system.utils.logger import setup_logger
 
@@ -72,6 +73,8 @@ class EnergySystemApp:
         self.acquisition = DataAcquisition(
             use_hardware=self.use_hardware,
             serial_bridge=self.serial_bridge,
+            # 组装根注入合成数据源：core 不再反向依赖 simulation（见 tests/contract/test_layering.py）
+            mock_generator=None if self.use_hardware else EnvironmentGenerator(seed=None),
         )
 
         # ── AI Advisor ─────────────────────────────────────────────

@@ -223,7 +223,7 @@ export default function AIDecisionPage() {
                       </>
                     )}
                     {candidate.accepted && (
-                      <StatusBadge label="已执行" status="online" />
+                      <StatusBadge label="已采纳·未下发" status="online" />
                     )}
                     {candidate.rejected && (
                       <StatusBadge label="已拒绝" status="error" />

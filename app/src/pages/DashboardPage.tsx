@@ -264,7 +264,7 @@ export default function DashboardPage() {
                       {candidate.accepted && (
                         <span className="text-[10px] font-mono text-emerald-400 flex items-center gap-1">
                           <Activity className="w-3 h-3" />
-                          已执行
+                          已采纳·未下发
                         </span>
                       )}
                       {candidate.rejected && (

@@ -256,6 +256,18 @@ class TestFrontendSingleSource(unittest.TestCase):
     #: 图表**结构色**（网格线 / 坐标轴 / 刻度文字）—— 与任何指标无关，允许就地写字面量
     CHART_CHROME_COLORS = {"#1e293b", "#334155", "#475569"}
 
+    def test_ai_candidate_ui_does_not_claim_execution(self):
+        """AI 候选的 UI 不得声称「已执行」（评审 P1：文案过度承诺）。
+
+        项目自身原则是「模型返回 ≠ 设备执行」；采纳/拒绝当前只在本地乐观更新
+        （store 测试已断言不发网络请求），因此界面只能说"已采纳"，不能说"已执行"。
+        """
+        for rel in ("pages/AIDecisionPage.tsx", "pages/DashboardPage.tsx"):
+            text = (PROJECT_ROOT / "app/src" / rel).read_text(encoding="utf-8")
+            self.assertNotIn(
+                "已执行", text, f"{rel} 又出现了「已执行」这种过度承诺的文案"
+            )
+
     def test_chart_does_not_hardcode_gradient_colors(self):
         """图表里凡是**指标颜色**（渐变/描边/刻度填充）都必须引用 lib/metrics.ts。
 

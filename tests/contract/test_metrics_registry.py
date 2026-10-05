@@ -206,6 +206,17 @@ class TestFrontendSingleSource(unittest.TestCase):
             ]
             self.assertEqual(offenders, [], f"{rel} 出现了指标键字面量，应引用 lib/metrics.ts")
 
+    def test_chart_does_not_hardcode_gradient_colors(self):
+        """SensorChart 的渐变颜色必须引用 lib/metrics.ts，不得再写死十六进制。"""
+        chart = (PROJECT_ROOT / "app/src/components/charts/SensorChart.tsx").read_text(encoding="utf-8")
+        stops = sorted(set(re.findall(r'stopColor="(#[0-9a-fA-F]{6})"', chart)))
+        self.assertEqual(stops, [], f"SensorChart 又硬编码了渐变颜色：{stops}（应引用 lib/metrics.ts）")
+
+    def test_metric_table_colors_are_concrete(self):
+        table = (PROJECT_ROOT / "app/src/lib/metrics.ts").read_text(encoding="utf-8")
+        colors = re.findall(r"color:\s*'(#[0-9a-fA-F]{6})'", table)
+        self.assertGreaterEqual(len(colors), 9, "指标表应给出全部 9 个指标的具体颜色")
+
     def test_frontend_metric_table_covers_the_backend_chart_keys(self):
         """前端指标表的键必须覆盖后端 ChartPoint 的数值字段（跨语言一致性）。"""
         from energy_system.api import schemas

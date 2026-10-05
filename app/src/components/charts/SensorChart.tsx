@@ -9,6 +9,7 @@ import {
   Legend,
 } from 'recharts';
 import type { ChartDataPoint } from '@/types';
+import { METRICS } from '@/lib/metrics';
 import type { TooltipProps } from 'recharts';
 
 interface SensorChartProps {
@@ -60,52 +61,29 @@ export default function SensorChart({
   showComfort = false,
   height = 300,
 }: SensorChartProps) {
+  // 渐变颜色取自 '@/lib/metrics'（单一真值）；id 保持原字符串，因为下方 fill="url(#...)" 引用它们。
+  const gradients = [
+    { id: 'colorTemp', metric: 'temp', visible: showTemp, top: 0.3 },
+    { id: 'colorHum', metric: 'humidity', visible: showHumidity, top: 0.3 },
+    { id: 'colorPower', metric: 'power_w', visible: showPower, top: 0.3 },
+    { id: 'colorSolar', metric: 'solar_power_w', visible: showSolar, top: 0.3 },
+    { id: 'colorBaseline', metric: 'baseline_power', visible: showBaseline, top: 0.2 },
+    { id: 'colorSaving', metric: 'saving_power', visible: showSaving, top: 0.3 },
+    { id: 'colorComfort', metric: 'comfort_score', visible: showComfort, top: 0.3 },
+  ] as const
+
   return (
     <ResponsiveContainer width="100%" height={height}>
       <AreaChart data={data} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
         <defs>
-          {showTemp && (
-            <linearGradient id="colorTemp" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor="#f97316" stopOpacity={0.3} />
-              <stop offset="95%" stopColor="#f97316" stopOpacity={0} />
-            </linearGradient>
-          )}
-          {showHumidity && (
-            <linearGradient id="colorHum" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3} />
-              <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
-            </linearGradient>
-          )}
-          {showPower && (
-            <linearGradient id="colorPower" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor="#ef4444" stopOpacity={0.3} />
-              <stop offset="95%" stopColor="#ef4444" stopOpacity={0} />
-            </linearGradient>
-          )}
-          {showSolar && (
-            <linearGradient id="colorSolar" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor="#eab308" stopOpacity={0.3} />
-              <stop offset="95%" stopColor="#eab308" stopOpacity={0} />
-            </linearGradient>
-          )}
-          {showBaseline && (
-            <linearGradient id="colorBaseline" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor="#94a3b8" stopOpacity={0.2} />
-              <stop offset="95%" stopColor="#94a3b8" stopOpacity={0} />
-            </linearGradient>
-          )}
-          {showSaving && (
-            <linearGradient id="colorSaving" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
-              <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
-            </linearGradient>
-          )}
-          {showComfort && (
-            <linearGradient id="colorComfort" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.3} />
-              <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0} />
-            </linearGradient>
-          )}
+          {gradients
+            .filter((g) => g.visible)
+            .map((g) => (
+              <linearGradient key={g.id} id={g.id} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor={METRICS[g.metric].color} stopOpacity={g.top} />
+                <stop offset="95%" stopColor={METRICS[g.metric].color} stopOpacity={0} />
+              </linearGradient>
+            ))}
         </defs>
         <CartesianGrid
           strokeDasharray="3 3"

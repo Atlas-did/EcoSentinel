@@ -109,7 +109,8 @@ export const METRICS: Record<MetricKey, MetricSpec> = {
   solar_power_w: {
     label: '太阳能',
     unit: 'W',
-    color: '#22c55e',
+    // 以 SensorChart 现有渐变为准（渲染真相），不因"统一"而改变视觉
+    color: '#eab308',
     icon: Sun,
     threshold: null,
     defaultActive: false,
@@ -118,7 +119,8 @@ export const METRICS: Record<MetricKey, MetricSpec> = {
   baseline_power: {
     label: '基准功率',
     unit: 'W',
-    color: '#64748b',
+    // 以 SensorChart 现有渐变为准（渲染真相）
+    color: '#94a3b8',
     icon: Zap,
     threshold: null,
     defaultActive: false,

@@ -11,6 +11,7 @@ import os
 import time
 from datetime import datetime
 
+from energy_system.application.ai_worker import AiWorker
 from energy_system.application.decision import DecisionService
 from energy_system.application.enrichment import TelemetryEnrichmentService
 from energy_system.application.scheduler import Scheduler
@@ -24,6 +25,10 @@ from energy_system.utils.file_io import append_jsonl
 from energy_system.utils.logger import setup_logger
 
 logger = setup_logger("Main")
+
+#: AI 建议的最大时效（秒）：按**发起请求的时刻**计算，超过即丢弃、绝不执行。
+#: 取 2× 循环周期（5s）：足够吸收一次慢调用，又不让控制决策基于陈旧快照。
+AI_ADVICE_MAX_AGE_S = 10.0
 
 
 class EnergySystemApp:
@@ -109,6 +114,16 @@ class EnergySystemApp:
             max_cmds_per_cycle=int(config.control.max_ai_cmds_per_cycle),
         )
 
+        # ── AI worker（把 AI 计算移出主回路）────────────────────────
+        # AI 是网络调用：放在主回路上会把"最坏耗时 × 重试次数"变成循环周期，
+        # 且 Scheduler 只能打印 overrun（见 tests/unit/test_loop_latency_budget.py）。
+        self.ai_worker = None
+        if self.ai_advisor is not None:
+            self.ai_worker = AiWorker(
+                decide_fn=self.decision.decide,
+                max_age_s=AI_ADVICE_MAX_AGE_S,
+            )
+
         # ── Logging ────────────────────────────────────────────────
         self.log_mgr = LogManager(run_label=self.run_label)
 
@@ -127,6 +142,9 @@ class EnergySystemApp:
         # running flag
         self.system_running = True
 
+        #: 循环周期（秒）。提成属性以便测试用短周期驱动（真实线程测试）与 M4 调整。
+        self.loop_interval_s = 5.0
+
     # ── main loop ──────────────────────────────────────────────────
     def run(self):
         logger.info("System startup complete. Ready for real-time monitoring.")
@@ -139,7 +157,7 @@ class EnergySystemApp:
 
                 if not sensor_data:
                     self._handle_no_data()
-                    next_tick = self.scheduler.wait_until_next_tick(next_tick, 5.0)
+                    next_tick = self.scheduler.wait_until_next_tick(next_tick, self.loop_interval_s)
                     continue
 
                 self._last_good_sample_mono = time.monotonic()
@@ -156,8 +174,11 @@ class EnergySystemApp:
                 # Compute metrics
                 self.enrichment.enrich(sensor_data)
 
-                # AI decision
-                self._run_ai_cycle(sensor_data)
+                # AI 决策：两步都**不阻塞主回路**
+                #   1) 先把上一轮算完且仍未过期的建议落到本轮（可能没有）
+                #   2) 再为本轮发起一次异步计算
+                self._apply_ai_advice(sensor_data)
+                self._request_ai_cycle(sensor_data)
 
                 # Rule-based actuation
                 if (
@@ -171,11 +192,12 @@ class EnergySystemApp:
                 # Log
                 self._enrich_and_log(sensor_data)
 
-                next_tick = self.scheduler.wait_until_next_tick(next_tick, 5.0)
+                next_tick = self.scheduler.wait_until_next_tick(next_tick, self.loop_interval_s)
 
         except KeyboardInterrupt:
             logger.info("Shutting down system...")
         finally:
+            self._shutdown_ai_worker()
             if self.serial_bridge:
                 self.serial_bridge.close()
 
@@ -248,12 +270,25 @@ class EnergySystemApp:
                         current_time_s=float(time.monotonic() - self._start_mono),
                     )
 
-    def _run_ai_cycle(self, sensor_data: dict):
-        result = self.decision.decide(sensor_data)
-        if result is None:
+    def _request_ai_cycle(self, sensor_data: dict):
+        """把本轮的 AI 计算交给 worker（非阻塞）；结果由后续轮次的 poll 取回。"""
+        if self.ai_worker is not None:
+            self.ai_worker.submit(sensor_data)
+
+    def _apply_ai_advice(self, sensor_data: dict):
+        """取回已完成且未过期的 AI 建议并落地/执行；没有则什么都不做。
+
+        过期建议由 AiWorker.poll 丢弃（按**请求时刻**计龄），因此这里拿到的
+        一定在 max_age_s 之内 —— 不会用陈旧快照去驱动硬件。
+        """
+        if self.ai_worker is None:
+            return
+        advice = self.ai_worker.poll(time.monotonic())
+        if advice is None:
             return
 
-        logger.info(f"AI Reasoning: {result.reasoning}")
+        result = advice.result
+        logger.info(f"AI Reasoning: {result.reasoning} (age={advice.age_s(time.monotonic()):.1f}s)")
         result.apply_to(sensor_data)
 
         # Execute AI commands (only in execute mode, only if not in safe_mode)
@@ -266,6 +301,10 @@ class EnergySystemApp:
                     res = self.serial_bridge.send_command(cmd)
                     logger.info(f"HW Exec(AI): {cmd} -> {res}")
                 self._last_ai_exec_mono = now_mono
+
+    def _shutdown_ai_worker(self):
+        if self.ai_worker is not None:
+            self.ai_worker.shutdown()
 
     def _enrich_and_log(self, sensor_data: dict):
         if self.serial_bridge:

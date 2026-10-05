@@ -1,7 +1,9 @@
 """AI decision service: turn advisor output into a validated DecisionResult.
 
-Extracted from ``EnergySystemApp._run_ai_cycle``. The service only decides and
-validates; it never sends commands to hardware — execution stays in the caller.
+The service only decides and validates; it never sends commands to hardware —
+execution stays in the caller. It is invoked by ``application/ai_worker.py``
+(off the control loop), and the loop applies the result via
+``EnergySystemApp._apply_ai_advice`` only while it is still fresh.
 """
 
 from __future__ import annotations

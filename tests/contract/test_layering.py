@@ -34,12 +34,14 @@ LAYER_RANK = {
     "utils": 9,
 }
 
-#: 已登记例外：{ (来源包, 目标包): 原因 }
-TRACKED_EXCEPTIONS = {
-    ("application", "hardware"): (
-        "组装根需要构造 SerialBridge/读取串口健康度；M4 拆分编排器时收敛为注入接口"
-    ),
-}
+#: 组装根文件豁免：这些文件承担"装配"职责，**本来就必须**认识具体适配器
+#: （SerialBridge / EnvironmentGenerator…）。按**文件**豁免比按包豁免精确得多：
+#: application 包里的其它文件仍然完全禁止 import hardware。
+#:
+#: 当前为**空**：`application -> hardware` 经层级秩判定本就是向内依赖（hardware 是叶子），
+#: 所以不需要任何豁免（此前那条"已登记例外"是空转 —— 旧的检查只看边是否存在，
+#: 没看它是否真的违规；本文件的 test_composition_root_exemptions_are_still_needed 现在会守住这点）。
+COMPOSITION_ROOT_FILES: dict[str, str] = {}
 
 
 def _imported_energy_packages(path: Path) -> set[str]:
@@ -83,8 +85,8 @@ class TestLayering(unittest.TestCase):
         for (source, target), files in sorted(_package_edges().items()):
             if LAYER_RANK[target] >= LAYER_RANK[source]:
                 continue  # 向内或同层：允许
-            if (source, target) in TRACKED_EXCEPTIONS:
-                continue
+            if files <= set(COMPOSITION_ROOT_FILES):
+                continue  # 该反向边的**每一处**都来自组装根文件 ⇒ 正当
             violations.append(
                 "{} -> {} (秩 {} -> {}): {}".format(
                     source, target, LAYER_RANK[source], LAYER_RANK[target], ", ".join(sorted(files))
@@ -114,15 +116,28 @@ class TestLayering(unittest.TestCase):
         )
         self.assertEqual(offenders, [], "叶子包出现了依赖：" + ", ".join(offenders))
 
-    def test_tracked_exceptions_are_still_real(self):
-        """修好之后必须删掉例外条目，否则门禁会悄悄失效。"""
+    def test_composition_root_exemptions_are_still_needed(self):
+        """豁免必须仍然"在干活"：若某个豁免文件已不再产生反向边，就该删掉条目。"""
         edges = _package_edges()
-        stale = [pair for pair in TRACKED_EXCEPTIONS if pair not in edges]
-        self.assertEqual(
-            stale,
-            [],
-            "以下例外已经不存在了，请从 TRACKED_EXCEPTIONS 中删除：{}".format(stale),
-        )
+        used = set()
+        for (source, target), files in edges.items():
+            if LAYER_RANK[target] < LAYER_RANK[source]:
+                used |= files & set(COMPOSITION_ROOT_FILES)
+        stale = sorted(set(COMPOSITION_ROOT_FILES) - used)
+        self.assertEqual(stale, [], "以下组装根豁免已不再需要，请从 COMPOSITION_ROOT_FILES 删除：{}".format(stale))
+
+    def test_exemptions_do_not_leak_to_other_files(self):
+        """反向边只有**全部**来源都是组装根时才放过；否则必须报违规。"""
+        for (source, target), files in _package_edges().items():
+            if LAYER_RANK[target] >= LAYER_RANK[source]:
+                continue
+            exempt = files & set(COMPOSITION_ROOT_FILES)
+            if exempt and exempt != files:
+                self.fail(
+                    "{} -> {} 的违规来源里混入了非组装根文件：{}".format(
+                        source, target, ", ".join(sorted(files - exempt))
+                    )
+                )
 
     def test_every_package_is_ranked(self):
         """新增包必须显式登记层级，否则门禁对它视而不见。"""

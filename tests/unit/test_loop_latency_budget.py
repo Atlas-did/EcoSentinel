@@ -14,6 +14,7 @@ import unittest
 from unittest.mock import patch
 
 from energy_system.application import runtime as runtime_mod
+from energy_system.application import wiring as wiring_mod
 from energy_system.application.ai_worker import AiWorker, ManualJobRunner
 from energy_system.application.decision import DecisionResult
 from energy_system.application.runtime import EnergySystemApp
@@ -112,7 +113,7 @@ class TestLoopLatencyBudget(unittest.TestCase):
         sched_logger = logging.getLogger("Scheduler")
         sched_logger.addHandler(counter)
         try:
-            with patch.object(runtime_mod, "LogManager", _NullLogManager), patch.object(
+            with patch.object(wiring_mod, "LogManager", _NullLogManager), patch.object(
                 runtime_mod, "append_jsonl", lambda *a, **k: None
             ):
                 app = _build_app()
@@ -156,7 +157,7 @@ class TestLoopLatencyBudget(unittest.TestCase):
 class TestRealThreads(unittest.TestCase):
     def test_slow_ai_with_real_threads_keeps_the_cadence(self):
         """端到端：真实线程 + 短周期。同步实现约 1-2 轮，异步实现约 20 轮。"""
-        with patch.object(runtime_mod, "LogManager", _NullLogManager), patch.object(
+        with patch.object(wiring_mod, "LogManager", _NullLogManager), patch.object(
             runtime_mod, "append_jsonl", lambda *a, **k: None
         ):
             app = _build_app()  # 必须在 patch 内构造：LogManager 的 __init__ 会碰文件系统

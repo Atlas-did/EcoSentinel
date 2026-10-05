@@ -1,8 +1,11 @@
 """Edge runtime: the hardware-mode control loop.
 
-Moved out of ``main.py`` so the loop can be imported without side effects and
-the metric/decision/scheduling pieces are injected services that can be tested
-in isolation. ``main.py`` re-exports this class for backward compatibility.
+M4 起拆为三段职责：
+- **装配**（composition root）→ ``application/wiring.py``
+- **循环与用例** → 本模块（后续继续外移 ``loop.py`` / ``usecases.py``）
+- 对外门面 → ``EnergySystemApp``（``main.py`` 仍 re-export 它，属性保持不变）
+
+``main.py`` re-exports this class for backward compatibility.
 """
 
 from __future__ import annotations
@@ -10,35 +13,25 @@ from __future__ import annotations
 import time
 from datetime import datetime
 
-from energy_system.application.ai_worker import AiWorker
-from energy_system.application.decision import DecisionService
-from energy_system.application.enrichment import TelemetryEnrichmentService
-from energy_system.application.scheduler import Scheduler
-from energy_system.config.env import battery_capacity_mah, battery_initial_soc
-from energy_system.core.command_dispatcher import RuleActuationController
-from energy_system.core.controller import RuleBasedController
-from energy_system.core.data_acquisition import DataAcquisition, no_data_heartbeat_fields
-from energy_system.core.log_manager import LogManager
-from energy_system.hardware.serial_bridge import SerialBridge
-from energy_system.resilience.orchestrator import ResilienceOrchestrator
-from energy_system.simulation.data_generator import EnvironmentGenerator
+from energy_system.application.wiring import AI_ADVICE_MAX_AGE_S, build_services
+from energy_system.core.data_acquisition import no_data_heartbeat_fields
 from energy_system.utils.file_io import append_jsonl
 from energy_system.utils.logger import setup_logger
 
 logger = setup_logger("Main")
 
-#: AI 建议的最大时效（秒）：按**发起请求的时刻**计算，超过即丢弃、绝不执行。
-#: 取 2× 循环周期（5s）：足够吸收一次慢调用，又不让控制决策基于陈旧快照。
-AI_ADVICE_MAX_AGE_S = 10.0
+#: 兼容旧引用点（真正的定义在 wiring.py）
+__all__ = ["AI_ADVICE_MAX_AGE_S", "EnergySystemApp"]
 
 
 class EnergySystemApp:
     """Orchestrates the hardware-mode control loop.
 
     Responsibilities (delegated):
+        - 装配              → application/wiring.py
         - Data acquisition   → DataAcquisition
         - Metric enrichment  → TelemetryEnrichmentService
-        - AI decision        → DecisionService
+        - AI decision        → DecisionService（经 AiWorker 异步）
         - Rule actuation     → RuleActuationController
         - Logging & summaries → LogManager
         - Self-healing       → ResilienceOrchestrator
@@ -46,101 +39,33 @@ class EnergySystemApp:
 
     def __init__(self, config, api_key: str | None = None):
         self.config = config
-        self.use_hardware = bool(config.use_hardware)
-        self.run_label = (config.run_label or "saving").strip() or "saving"
-        self.enable_ai = bool(config.ai.enabled)
-        self.ai_control_mode = (config.ai.control_mode or "suggest").lower()
-        if self.ai_control_mode not in {"suggest", "execute"}:
-            self.ai_control_mode = "suggest"
+        services = build_services(config, api_key)
 
-        # ── Hardware layer ─────────────────────────────────────────
-        self.serial_bridge = None
-        if self.use_hardware:
-            self.serial_bridge = SerialBridge(
-                port=config.serial.port,
-                baudrate=int(config.serial.baudrate),
-                timeout=float(config.serial.timeout_s),
-            )
-            if self.serial_bridge.connect():
-                logger.info("Hardware initialization successful.")
-            else:
-                logger.warning(
-                    "Hardware connection failed at startup; will keep retrying. "
-                    "Make sure no other process is holding the COM port."
-                )
+        # 公开属性保持与拆分前一致（main.py 再导出、测试直接改这些属性）
+        self.use_hardware = services.use_hardware
+        self.run_label = services.run_label
+        self.enable_ai = services.enable_ai
+        self.ai_control_mode = services.ai_control_mode
 
-        # ── Data acquisition ───────────────────────────────────────
-        self.acquisition = DataAcquisition(
-            use_hardware=self.use_hardware,
-            serial_bridge=self.serial_bridge,
-            # 组装根注入合成数据源：core 不再反向依赖 simulation（见 tests/contract/test_layering.py）
-            mock_generator=None if self.use_hardware else EnvironmentGenerator(seed=None),
-        )
+        self.serial_bridge = services.serial_bridge
+        self.acquisition = services.acquisition
+        self.ai_advisor = services.ai_advisor
+        self.decision = services.decision
+        self.ai_worker = services.ai_worker
+        self.enrichment = services.enrichment
+        self.log_mgr = services.log_mgr
+        self.resilience = services.resilience
+        self.rule_controller = services.rule_controller
+        self.actuation = services.actuation
+        self.scheduler = services.scheduler
+        self._start_mono = services.start_mono
 
-        # ── AI Advisor ─────────────────────────────────────────────
-        self.ai_advisor = None
-        if self.enable_ai:
-            try:
-                from energy_system.algorithms.ai_advisor import AIAdvisor
-
-                self.ai_advisor = AIAdvisor(api_key=(api_key or ""), ai_config=self.config.ai)
-                if api_key:
-                    logger.info(f"AI Advisor initialized (mode={self.ai_control_mode}).")
-                else:
-                    logger.warning(
-                        "AI enabled but missing API key env: cloud calls disabled; "
-                        "using local fallback only."
-                    )
-            except Exception as e:
-                self.ai_advisor = None
-                logger.error(f"AI Advisor unavailable, disabled: {e}")
-        else:
-            logger.info("AI disabled by config.")
-
-        # ── Rule controller + actuation ────────────────────────────
-        self.rule_controller = RuleBasedController(mode=self.run_label)
-        self.actuation = RuleActuationController(
-            serial_bridge=self.serial_bridge,
-            rule_controller=self.rule_controller,
-            actuate_min_interval_s=float(config.control.actuate_min_interval_s),
-            illuminance_min=float(config.thresholds.illuminance_min),
-            run_label=self.run_label,
-        )
-
-        # ── Metric enrichment + AI decision ────────────────────────
-        self.enrichment = TelemetryEnrichmentService(
-            battery_capacity_mah=battery_capacity_mah(),
-            battery_initial_soc=battery_initial_soc(),
-        )
-        self.decision = DecisionService(
-            self.ai_advisor,
-            max_cmds_per_cycle=int(config.control.max_ai_cmds_per_cycle),
-        )
-
-        # ── AI worker（把 AI 计算移出主回路）────────────────────────
-        # AI 是网络调用：放在主回路上会把"最坏耗时 × 重试次数"变成循环周期，
-        # 且 Scheduler 只能打印 overrun（见 tests/unit/test_loop_latency_budget.py）。
-        self.ai_worker = None
-        if self.ai_advisor is not None:
-            self.ai_worker = AiWorker(
-                decide_fn=self.decision.decide,
-                max_age_s=AI_ADVICE_MAX_AGE_S,
-            )
-
-        # ── Logging ────────────────────────────────────────────────
-        self.log_mgr = LogManager(run_label=self.run_label)
-
-        # ── Resilience / self-healing ──────────────────────────────
+        # ── Resilience / self-healing 运行期状态 ───────────────────
         self.safe_mode = False
         self.safe_reason: str | None = None
         self._last_good_sample_mono: float | None = None
         self._last_ai_exec_mono: float = 0.0
         self._last_no_data_log_mono: float = 0.0
-        self.resilience = ResilienceOrchestrator(config=self.config)
-        self._start_mono = time.monotonic()
-
-        # ── Scheduler ──────────────────────────────────────────────
-        self.scheduler = Scheduler()
 
         # running flag
         self.system_running = True

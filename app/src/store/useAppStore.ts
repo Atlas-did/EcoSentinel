@@ -39,7 +39,6 @@ interface AppState {
   selectedTimeRange: TimeRange;
   aiStatus: AIStatus;
   sidebarOpen: boolean;
-  activeTab: string;
   toasts: Toast[];
 
   // Data State
@@ -52,7 +51,6 @@ interface AppState {
   simulationParams: SimulationParams;
 
   // Loading States
-  isLoading: boolean;
   isRefreshing: boolean;
   backendOnline: boolean | null;
 
@@ -61,9 +59,7 @@ interface AppState {
   setRunLabel: (label: RunLabel) => void;
   setAutoRefresh: (enabled: boolean) => void;
   setTimeRange: (range: TimeRange) => void;
-  setAIStatus: (status: AIStatus) => void;
   toggleSidebar: () => void;
-  setActiveTab: (tab: string) => void;
   addToast: (toast: Omit<Toast, 'id'>) => void;
   removeToast: (id: string) => void;
 
@@ -84,7 +80,6 @@ export const useAppStore = create<AppState>((set, get) => ({
   selectedTimeRange: '1h',
   aiStatus: 'enabled',
   sidebarOpen: true,
-  activeTab: 'overview',
   toasts: [],
 
   // Initial Data State (seed with mock so UI renders immediately)
@@ -97,7 +92,6 @@ export const useAppStore = create<AppState>((set, get) => ({
   simulationParams: getDefaultSimulationParams(),
 
   // Initial Loading
-  isLoading: false,
   isRefreshing: false,
   backendOnline: null,
 
@@ -111,9 +105,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     set({ chartData: generateChartData(selectedTimeRange) });
     get().refreshData();
   },
-  setAIStatus: (aiStatus) => set({ aiStatus }),
   toggleSidebar: () => set((state) => ({ sidebarOpen: !state.sidebarOpen })),
-  setActiveTab: (activeTab) => set({ activeTab }),
   addToast: (toast) => {
     const id = `toast-${++toastIdCounter}`;
     set((state) => ({ toasts: [...state.toasts, { ...toast, id }] }));

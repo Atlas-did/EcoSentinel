@@ -69,6 +69,11 @@ jobs:
       - name: Lint
         run: npm run lint
 
+      # G7：不可达文件 / 未使用导出 / 无主依赖一旦长回来就变红。
+      # 当前是**零豁免**基线（不配置 ignore），所以任何新增死代码都是真信号。
+      - name: Dead-code check (knip)
+        run: npm run knip
+
       # G6：前端此前零测试，而下一步要批量删除不可达的 ui/ 脚手架（约 61% 的 src）——
       # 没有测试网就动刀是赌博。这里把 vitest 变成阻塞门禁。
       - name: Unit tests (vitest)

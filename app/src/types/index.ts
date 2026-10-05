@@ -32,11 +32,8 @@ export interface AICandidate {
   commands: string[];
   risk?: string;
   createdAt: string;
-  executed?: boolean; // whether the command was actually sent to hardware
+  executed?: boolean; // "model returned" ≠ "device executed": only true after the device ack
 }
-
-// AI suggestion lifecycle: "model returned" vs "device executed" must stay distinct.
-export type AICommandStatus = 'suggestion' | 'accepted' | 'rejected' | 'executed';
 
 // Self-healing / resilience event
 export interface ResilienceEvent {
@@ -108,7 +105,6 @@ export type SystemMode = 'real-time' | 'simulation';
 export type RunLabel = 'baseline' | 'saving';
 export type AIStatus = 'enabled' | 'degraded' | 'disconnected';
 export type TimeRange = '5m' | '1h' | '24h';
-export type PageTab = 'logs' | 'energy' | 'simulation';
 
 // Toast notification
 export interface Toast {

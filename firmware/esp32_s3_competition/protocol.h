@@ -405,13 +405,11 @@ static void handleCommand(String line) {
   }
 #endif
 
-  // 诊断 / 验收命令 —— replySensorsJson / replyStateJson / replyPinMapJson / replyI2cScanJson
-  // 此前**已实现却无人分发**, 于是 scripts/hardware_autodiag.py 文档里写的
-  // GET_STATE / READ_SENSORS / PINMAP / I2C_SCAN 永远收不到应答(只有被动遥测)。
-  if (line.startsWith("GET_STATE"))    { replyStateJson();   return; }
-  if (line.startsWith("READ_SENSORS")) { replySensorsJson(); return; }
-  if (line.startsWith("PINMAP"))       { replyPinMapJson();  return; }
-  if (line.startsWith("I2C_SCAN"))     { replyI2cScanJson(); return; }
+  // 诊断 / 验收命令 —— 此前这些回复函数**已实现却无人分发**（只有被动遥测），
+  // 于是 scripts/hardware_autodiag.py 文档里写的 GET_STATE / READ_SENSORS 永远收不到应答。
+  // 注意: READ_SENSORS / GET_STATE / PINMAP / I2C_SCAN / I2C_RECOVER / RESET 已在**上面**
+  // 由 `line == "X"` 精确匹配处理, 此处不再重复 —— 早先这里多出过 startsWith 重复分支,
+  // 属死代码, 现由 tests/contract/test_serial_protocol.py 的"同一命令不得两种分发"守住。
   if (line.startsWith("SELFTEST"))     { printSelfTest();    return; }
 
   replyError("UNKNOWN_CMD");

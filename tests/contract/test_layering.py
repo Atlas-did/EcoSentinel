@@ -107,8 +107,11 @@ class TestLayering(unittest.TestCase):
         )
 
     def test_leaf_packages_stay_leaves(self):
-        """这些包不该 import 任何其它 energy_system 包（它们是纯叶子）。"""
-        leaves = {"utils", "hardware", "persistence", "power", "experiments"}
+        """这些包不该 import 任何其它 energy_system 包（它们是纯叶子）。
+
+        注意：``hardware`` 不是叶子 —— protocol_contract 需要 utils.logger（向内依赖，层级秩允许）。
+        """
+        leaves = {"utils", "persistence", "power", "experiments"}
         offenders = sorted(
             "{} -> {}".format(source, target)
             for (source, target) in _package_edges()

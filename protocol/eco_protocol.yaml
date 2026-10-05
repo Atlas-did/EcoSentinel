@@ -1,0 +1,99 @@
+# EcoSentinel 串口协议契约 —— 主机与固件的**单一真值**（M5）
+#
+# 这里只写**已被源码证实**的事实（命令分发方式、回复令牌、帧字段与换算）。
+# 由 tests/contract/test_serial_protocol.py 同时在两侧断言：
+#   · 固件侧：解析 protocol.h 的分发与回复令牌，必须与 commands / replies 一致
+#   · 主机侧：解析 serial_bridge.py 的分类与解析行为，必须与 limits / sensor_frame 一致
+# 只改一侧（例如把 mW 改成 W）会让门禁变红。
+
+version: 1
+
+transport:
+  baudrate: 115200
+  line_terminator: "\n"
+  encoding: utf-8          # 主机用 decode('utf-8', errors='ignore')
+  #: 超过即丢弃。固件异常刷屏时保护主机解析器（此前主机侧**没有任何上限**）。
+  max_frame_bytes: 4096
+
+replies:
+  ok: '{"ok":true,"msg":"<TOKEN>"}'
+  error: '{"ok":false,"error":"<TOKEN>"}'
+
+commands:
+  - name: PINMAP
+    match: exact            # 固件用 line == "PINMAP"
+    args: none
+    reply: pinmap_json
+  - name: I2C_SCAN
+    match: exact
+    args: none
+    reply: i2c_scan_json
+  - name: I2C_RECOVER
+    match: exact
+    args: none
+    replies: [ok:I2C_RECOVER_OK, error:I2C_RECOVER_FAILED]
+  - name: RESET
+    match: exact
+    args: none
+    replies: [ok:RESETTING]
+    note: 设备会重启（delay(50) + ESP.restart()）
+  - name: RELAY
+    match: prefix           # 固件用 line.startsWith("RELAY")
+    args: "<n:1..4> <0|1>"
+    replies: [ok:RELAY_SET, error:BAD_RELAY_CMD]
+  - name: BUZZER
+    match: prefix
+    args: "<0|1>"
+    replies: [ok:BUZZER_SET, error:BAD_BUZZER_CMD]
+  - name: CURTAIN
+    match: prefix
+    args: "OPEN|CLOSE|STOP|CAL <steps>"
+    replies:
+      - ok:CURTAIN_OPEN
+      - ok:CURTAIN_CLOSE
+      - ok:CURTAIN_STOP
+      - ok:CURTAIN_CAL_OK
+      - error:BAD_CURTAIN_CAL
+      - error:CURTAIN_CAL_TOO_SMALL
+      - error:BAD_CURTAIN_CMD
+  - name: GET_STATE
+    match: exact            # 固件用 line == "GET_STATE"
+    args: none
+    reply: state_json
+  - name: READ_SENSORS
+    match: exact            # 固件用 line == "READ_SENSORS"
+    args: none
+    reply: sensors_json
+  - name: SELFTEST
+    match: prefix
+    args: none
+    reply: selftest_json
+  - name: IR_NEC
+    match: prefix
+    conditional: USE_IR     # config.h 中默认关闭：// #define USE_IR
+    args: "0x<hex> <bits>"
+    replies: [ok:IR_SENT, error:BAD_IR_CMD]
+
+error_tokens:
+  - UNKNOWN_CMD             # 未识别命令的统一回复
+
+# 被动遥测帧（replySensorsJson）逐字段：wire 名 → 规范指标 + 单位 + 换算系数
+# 规范单位 = 线上值 × scale（与 domain/telemetry.py 的 WIRE_FIELDS 必须一致）
+sensor_frame:
+  temperature:      {canonical: temperature,      unit: degC,   scale: 1.0}
+  humidity:         {canonical: humidity,         unit: "%RH",  scale: 1.0}
+  illuminance:      {canonical: illuminance,      unit: lux,    scale: 1.0}
+  eco2:             {canonical: eco2,             unit: ppm,    scale: 1.0}
+  tvoc:             {canonical: tvoc,             unit: ppb,    scale: 1.0}
+  bus_v:            {canonical: bus_v,            unit: V,      scale: 1.0}
+  current_ma:       {canonical: current_ma,       unit: mA,     scale: 1.0}
+  pwr_mw:           {canonical: power_w,          unit: mW,     scale: 0.001}
+  solar_bus_v:      {canonical: solar_bus_v,      unit: V,      scale: 1.0}
+  solar_current_ma: {canonical: solar_current_ma, unit: mA,     scale: 1.0}
+  solar_pwr_mw:     {canonical: solar_power_w,    unit: mW,     scale: 0.001}
+  relays:           {canonical: relays,           unit: "bool[]", scale: 1.0}
+  curtain_steps:    {canonical: curtain_steps,    unit: steps,  scale: 1.0}
+  errors:           {canonical: errors,           unit: "str[]", scale: 1.0}
+
+#: 其它诊断负载（不是数据帧）：只需登记存在
+diagnostic_payloads: [state_json, pinmap_json, i2c_scan_json, selftest_json, sensors_json]

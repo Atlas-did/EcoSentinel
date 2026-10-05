@@ -98,7 +98,10 @@ def test_firmware_still_defines_the_selftest_token():
 def test_firmware_dispatches_the_diagnostic_commands():
     text = (FIRMWARE_DIR / "protocol.h").read_text(encoding="utf-8")
     for cmd in ("GET_STATE", "READ_SENSORS", "PINMAP", "I2C_SCAN", "SELFTEST"):
-        assert 'startsWith("{}")'.format(cmd) in text, \
+        # 固件两种分发写法都存在（精确匹配与前缀匹配）；此处只要求"有分发"，
+        # "同一命令不得两种写法同时存在"由 tests/contract/test_serial_protocol.py 负责。
+        dispatched = 'startsWith("{}")'.format(cmd) in text or '== "{}"'.format(cmd) in text
+        assert dispatched, \
             "固件未分发 {}：回复函数存在但无人调用 ⇒ 自诊断/验收会静默失败".format(cmd)
 
 

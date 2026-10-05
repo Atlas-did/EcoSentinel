@@ -13,10 +13,18 @@ try:
 except Exception:  # pragma: no cover
     serial = None
 
+from energy_system.hardware.protocol_contract import max_frame_bytes
+
+#: 单帧上限由协议清单(protocol/eco_protocol.yaml)驱动 —— 见 tests/contract/test_serial_protocol.py
+MAX_FRAME_BYTES = max_frame_bytes()
+
 
 def parse_sensor_line(line: str) -> dict[str, Any] | None:
     line = (line or "").strip()
     if not line:
+        return None
+    # 超长帧直接丢弃：固件异常刷屏时保护解析器（此前主机侧没有任何上限）
+    if len(line) > MAX_FRAME_BYTES:
         return None
     # 固件可能回传错误标记（例如 DHT 读数 NaN）
     if line.startswith("DHT_"):

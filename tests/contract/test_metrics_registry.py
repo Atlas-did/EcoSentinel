@@ -290,6 +290,20 @@ class TestFrontendSingleSource(unittest.TestCase):
             callers, ["app/src/App.tsx"], f"轮询启停只应出现在布局根，实际出现在：{callers}"
         )
 
+    def test_simulation_page_has_no_fabricated_comparison_numbers(self):
+        """SimulationPage 的三张对比卡不得再出现写死的对比数字（审计点名，答辩论最易穿帮处）。
+
+        覆盖边界：**源码字面量扫描**（找具体数字/百分比与写死的进度条宽度），不是渲染断言。
+        """
+        sim = (PROJECT_ROOT / "app/src/pages/SimulationPage.tsx").read_text(encoding="utf-8")
+        for forbidden in (
+            "±2.5", "±1.2", "12.5 kWh", "8.8 kWh", "72 分", "89 分",
+            "提升 52%", "提升 23.6%",
+            "animate={{ width: '75%' }}", "animate={{ width: '70%' }}", "animate={{ width: '89%' }}",
+        ):
+            self.assertNotIn(forbidden, sim, f"SimulationPage 又出现写死的对比数字/进度条：{forbidden}")
+        self.assertIn("示意（非实测）", sim, "该页必须显式标注为示意，而不是伪装成真实对比")
+
     def test_relay_state_is_not_hardcoded(self):
         """继电器状态必须来自 `latestSnapshot.relays`（审计点名：DashboardPage 写死 ON/OFF）。
 

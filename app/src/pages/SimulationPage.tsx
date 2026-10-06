@@ -209,24 +209,10 @@ export default function SimulationPage() {
               <h3 className="text-xs font-mono text-slate-400 uppercase tracking-wider">温度控制</h3>
             </div>
             <div className="space-y-3">
-              <div className="flex items-center justify-between text-xs font-mono">
-                <span className="text-slate-500">规则策略</span>
-                <span className="text-slate-300">±2.5°C 波动</span>
-              </div>
-              <div className="flex items-center justify-between text-xs font-mono">
-                <span className="text-slate-500">AI 策略</span>
-                <span className="text-emerald-400">±1.2°C 波动</span>
-              </div>
-              <div className="h-1 bg-slate-800 rounded-full overflow-hidden">
-                <motion.div
-                  className="h-full bg-gradient-to-r from-orange-500 to-emerald-400"
-                  initial={{ width: 0 }}
-                  animate={{ width: '75%' }}
-                  transition={{ duration: 1, delay: 0.5 }}
-                />
-              </div>
-              <p className="text-[10px] font-mono text-slate-600">
-                AI 策略温度控制精度提升 52%
+              <p className="text-[10px] font-mono text-amber-400/70">
+                ⚠️ **示意（非实测）**：本卡原有的"规则/AI 温度波动与精度提升"数字为界面演示文本，
+                已按审计要求移除 —— 它们未接入任何实测或仿真结果，不做无来源的对比。
+                真实温度表现见「能源分析」页；且本模型目前**无热惯性**（τ≈13.9s ≪ dt=300s，见 README）。
               </p>
             </div>
           </motion.div>
@@ -242,22 +228,6 @@ export default function SimulationPage() {
               <h3 className="text-xs font-mono text-slate-400 uppercase tracking-wider">能耗对比</h3>
             </div>
             <div className="space-y-3">
-              <div className="flex items-center justify-between text-xs font-mono">
-                <span className="text-slate-500">规则策略</span>
-                <span className="text-slate-300">12.5 kWh/天</span>
-              </div>
-              <div className="flex items-center justify-between text-xs font-mono">
-                <span className="text-slate-500">AI 策略</span>
-                <span className="text-emerald-400">8.8 kWh/天</span>
-              </div>
-              <div className="h-1 bg-slate-800 rounded-full overflow-hidden">
-                <motion.div
-                  className="h-full bg-gradient-to-r from-yellow-500 to-emerald-400"
-                  initial={{ width: 0 }}
-                  animate={{ width: '70%' }}
-                  transition={{ duration: 1, delay: 0.6 }}
-                />
-              </div>
               <p className="text-[10px] font-mono text-amber-400/70">
                 ⚠️ 本页对比卡为**固定示例值**（未接入实测）：只用于演示界面布局，
                 不代表本系统的实测节能率；真实仿真结果见「能源分析」页（现行口径 17.6%，且建筑参数未标定）
@@ -276,24 +246,11 @@ export default function SimulationPage() {
               <h3 className="text-xs font-mono text-slate-400 uppercase tracking-wider">舒适度</h3>
             </div>
             <div className="space-y-3">
-              <div className="flex items-center justify-between text-xs font-mono">
-                <span className="text-slate-500">规则策略</span>
-                <span className="text-slate-300">72 分</span>
-              </div>
-              <div className="flex items-center justify-between text-xs font-mono">
-                <span className="text-slate-500">AI 策略</span>
-                <span className="text-emerald-400">89 分</span>
-              </div>
-              <div className="h-1 bg-slate-800 rounded-full overflow-hidden">
-                <motion.div
-                  className="h-full bg-gradient-to-r from-cyan-500 to-emerald-400"
-                  initial={{ width: 0 }}
-                  animate={{ width: '89%' }}
-                  transition={{ duration: 1, delay: 0.7 }}
-                />
-              </div>
-              <p className="text-[10px] font-mono text-slate-600">
-                AI 策略舒适度评分提升 23.6%
+              <p className="text-[10px] font-mono text-amber-400/70">
+                ⚠️ **示意（非实测）**：本卡原有的"规则/AI 舒适度评分与提升幅度"数字为界面演示文本，已按审计要求移除。
+                真实舒适度请用 **IPMVP 原生口径**（时间在 [23,26]℃ 带内占比）：
+                现行实测 **baseline 41.7% → saving 20.6%**（见 README 与 `docs/pmv-ppd-study.md`）——
+                也就是说节能策略**并没有"提升舒适度"，反而减少了带内时间**。
               </p>
             </div>
           </motion.div>

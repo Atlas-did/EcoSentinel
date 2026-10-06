@@ -48,15 +48,42 @@ class DataAcquisition:
         else:
             return self._read_mock()
 
+    #: INA219 电流/功率的**台架校正系数** = 实测值 / 上报值。默认 1.0 = 未校正（与历史行为一致）。
+    #: 背景（队友第二轮审计查证，我复核为真）：固件只调 `ina219.begin()`
+    #: （`firmware/esp32_s3_competition/esp32_s3_competition.ino:76`），**全文件无 `setCalibration`** ⇒
+    #: 用的是模块标称 0.4 Ω 分流电阻 ⇒ current/power 带 2–5% 系统误差（累计 kWh 与上板实测数据受影响）。
+    #: ⚠️ Adafruit 库的 `setCalibration(...)` 很可能是 **protected**（公开的只有 32V/2A 与 16V/400mA 两档）
+    #: ⇒ **不改编库 API**，改为在读数出口乘一个**实测比例**；用万用表/基准电流源标定后填入。
+    #: 流程见 `docs/hardware-runbook.md`。
+    INA219_CURRENT_SCALE: float = 1.0
+
     def _read_hardware(self) -> dict | None:
         bridge = self.serial_bridge
         if not bridge:
             return None
         try:
-            return bridge.read_sensors()
+            data = bridge.read_sensors()
         except Exception as e:
             logger.warning(f"Sensor read failed: {e}")
             return None
+        return self._apply_ina219_calibration(data)
+
+    @classmethod
+    def _apply_ina219_calibration(cls, data: dict | None) -> dict | None:
+        """按 `INA219_CURRENT_SCALE` 校正 INA219 的电流/功率（**电压不动**）。
+
+        覆盖边界：只作用于**硬件路径**。mock 生成器给出的 `current_ma`/`pwr_mw` 是模拟值，
+        不参与校正 —— 否则会无意义地改动仿真 golden 数字。
+        """
+        scale = float(cls.INA219_CURRENT_SCALE)
+        if data is None or scale == 1.0:
+            return data
+        out = dict(data)
+        for key in ("current_ma", "pwr_mw"):
+            value = out.get(key)
+            if isinstance(value, (int, float)):
+                out[key] = value * scale
+        return out
 
     def _read_mock(self) -> dict | None:
         """Generate mock data from the injected generator.

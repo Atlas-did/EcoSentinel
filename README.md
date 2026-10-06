@@ -149,6 +149,17 @@ ecosentinel/
   strategy **halves** the time spent in the comfort band. Both numbers are pinned by
   `tests/unit/test_comfort_band.py`. Band source: ISO 7730 (PMV ∈ ±0.5 ⇒ ≈23–26.5 °C) and Sinergym
   (`range_comfort_summer = (23.0, 26.0)`), which agree.
+
+> ⚠️ **This model has no thermal inertia** (established in the second teammate audit, verified here):
+> `τ = C_AIR/(U_WALL·A_WALL) = 25000/1800 ≈ 13.9 s` while the step is `dt = 300 s`, so
+> `exp(−dt/τ) = 4.16e-10` — **every step lands on that step's steady state** and the room's heat storage
+> is effectively absent. Consequences: the time-of-day setpoint schedule (including the 07–09 pre-cooling)
+> **cannot store coolth**, so any claim that depends on *when* energy is used is not representable in this
+> model; the savings figure therefore reflects a per-step decision, not a scheduling strategy.
+> The parameters are **left unchanged** on purpose — co-calibrating them (`UA ≥ 600 W/K` for the AC to have
+> authority, and `C_AIR = τ·UA` for a 1–3 h time constant) requires measured data; see
+> `docs/hardware-runbook.md` and `scripts/identify_rc.py`. Until then this limitation must be stated
+> wherever the 17.6% is quoted.
 - **Dual-channel metering** (optional) — measure both load consumption + solar input simultaneously
 
 > ⚠️ **Simulation numbers are not field measurements.** With the current (uncalibrated, demo-grade)

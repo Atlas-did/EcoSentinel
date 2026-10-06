@@ -46,6 +46,64 @@ FLOOR_AREA_M2 = 50.0
 U_WALL = 12.0         # 综合等效传热系数 [W/m²K]
 A_WALL = 150.0        # 围护结构面积 [m²]
 
+# ── 具名物理参数集（2026-10，来自《docs/deep-audit-report.md》第 5 章）────────────────
+# 用途：在**不改默认值**的前提下，能跑"真实量级"的反事实实验（控制律、τ、带内占比）。
+# ⚠️ realistic **不是实测值**，是文献量级论证；标定必须走 scripts/identify_rc.py + 实机数据。
+# ⚠️ 联合约束（队友原文给 τ∈[0.5,2] h 与 θ>0.9，但 C=3.6e5/UA=150 ⇒ τ=2400 s、θ=0.882 不达标）：
+#    θ = exp(-dt/τ) > 0.9  ⇒  C/UA > dt/ln(1/0.9) = 300/0.10536 ≈ 2848 s（≈47.5 min）
+#    故这里取 C_AIR=4.3e5 使约束成立；执行时应断言**不等式**，不要抄单点值。
+PARAMETER_SETS = {
+    "demo": {
+        "U_WALL": 12.0,
+        "A_WALL": 150.0,
+        "C_AIR": 25000.0,
+        "source": "仓库既有演示值，未被任何实测标定（保持为默认）",
+    },
+    "realistic": {
+        "U_WALL": 1.0,
+        "A_WALL": 150.0,
+        "C_AIR": 430000.0,
+        "source": (
+            "**文献量级论证**（非实测）：深度核查指出同类单房间 UA 真实量级约 50–150 W/K ⇒ 取 UA=150 W/K"
+            "（U_WALL=1.0 × A_WALL=150）；C_AIR 取 4.3e5 J/K 以满足其自身验收门槛 θ>0.9（C/UA≈2867 s）"
+        ),
+    },
+}
+#: 当前生效的参数集 —— **保持 demo**，切默认必须有实测标定与用户决策。
+ACTIVE_PARAMETER_SET = "demo"
+
+
+def parameter_set(name: str = ACTIVE_PARAMETER_SET) -> dict:
+    """返回具名参数集（含 source）。未知名字直接报错，不静默回退。"""
+    if name not in PARAMETER_SETS:
+        raise KeyError(f"未知参数集 {name!r}；可选：{sorted(PARAMETER_SETS)}")
+    return PARAMETER_SETS[name]
+
+
+def check_parameter_set(name: str = ACTIVE_PARAMETER_SET) -> dict:
+    """校验参数集的**热惯性联合约束**，返回 UA/τ/θ；不满足则抛 ValueError。
+
+    约束：`C/UA > dt/ln(1/0.9)`（等价 θ = exp(-dt/τ) > 0.9，即"一步后仍保留 >90% 记忆"）。
+    这条不等式就是"模型有没有热惯性"的可断言形式 —— 深度核查的核心指控即 θ≈4e-10。
+    """
+    import math
+
+    values = parameter_set(name)
+    ua = float(values["U_WALL"]) * float(values["A_WALL"])
+    c_air = float(values["C_AIR"])
+    if ua <= 0 or c_air <= 0:
+        raise ValueError(f"{name}: UA 与 C_AIR 必须为正（UA={ua}，C_AIR={c_air}）")
+    tau = c_air / ua
+    theta = math.exp(-TIME_STEP / tau)
+    min_tau = TIME_STEP / math.log(1.0 / 0.9)
+    if tau <= min_tau:
+        raise ValueError(
+            f"{name}: 热惯性不足 —— τ=C/UA={tau:.1f} s 未超过门槛 {min_tau:.1f} s"
+            f"（θ=exp(-dt/τ)={theta:.4f} ≤ 0.9）⇒ 该参数下「什么时候用电」的策略原理上无法体现"
+        )
+    return {"name": name, "UA_w_per_k": ua, "C_j_per_k": c_air, "tau_s": tau,
+            "theta": theta, "min_tau_s": min_tau, "source": values["source"]}
+
 ALPHA_SOLAR = 0.7     # 太阳辐射得热系数（含玻璃透射+内表面吸收）
 A_WINDOW = 5.0        # 采光窗面积 [m²]
 

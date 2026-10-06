@@ -15,6 +15,7 @@ import {
   Sparkles,
 } from 'lucide-react';
 import StatusBadge from '@/components/common/StatusBadge';
+import { meanOf } from '@/lib/stats';
 
 export default function AIDecisionPage() {
   const {
@@ -38,13 +39,9 @@ export default function AIDecisionPage() {
     accepted: aiCandidates.filter((c) => c.accepted).length,
     rejected: aiCandidates.filter((c) => c.rejected).length,
     pending: aiCandidates.filter((c) => !c.accepted && !c.rejected).length,
-    // 候选列表为空时不得做除法（0/0 = NaN 会直接显示到界面上）；空列表一律给 0
-    avgScore: aiCandidates.length
-      ? aiCandidates.reduce((acc, c) => acc + (c.score || 0), 0) / aiCandidates.length
-      : 0,
-    avgLatency: aiCandidates.length
-      ? aiCandidates.reduce((acc, c) => acc + (c.latency_ms || 0), 0) / aiCandidates.length
-      : 0,
+    // 候选列表为空时不得做除法（0/0 = NaN 会显示到界面上）；统一交给 meanOf（有专门用例固化）
+    avgScore: meanOf(aiCandidates.map((c) => c.score || 0)),
+    avgLatency: meanOf(aiCandidates.map((c) => c.latency_ms || 0)),
   };
 
   return (

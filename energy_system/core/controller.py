@@ -97,8 +97,21 @@ class RuleBasedController:
         },
     }
 
-    def __init__(self, mode: str = "baseline"):
+    def __init__(self, mode: str = "baseline", control_law: str = "bangbang",
+                 ua_w_per_k: float | None = None, q_ac_max_w: float | None = None):
+        """control_law: "bangbang"（默认 = 既有行为）| "feedforward"（《deep-audit》§1.5 的修法）。
+
+        前馈律需要围护结构 UA ⇒ 由 Simulator 传入 `ua_w_per_k`（取自已构造的 ThermalModel），
+        这样参数覆盖（realistic）时控制律与模型用同一套参数，而不是 settings 的默认值。
+        """
+        if control_law not in ("bangbang", "feedforward"):
+            raise ValueError(f"未知控制律 {control_law!r}；可选 bangbang | feedforward")
         self.mode = mode
+        self.control_law = control_law
+        self.ua_w_per_k = (
+            float(ua_w_per_k) if ua_w_per_k is not None else float(settings.U_WALL * settings.A_WALL)
+        )
+        self.q_ac_max_w = float(q_ac_max_w) if q_ac_max_w is not None else float(settings.Q_AC_MAX)
         self.ac_state = HysteresisStateMachine(
             min_run_time_s=15 * 60,
             min_stop_time_s=10 * 60,
@@ -157,6 +170,30 @@ class RuleBasedController:
         """Rough indoor lux estimate from solar irradiance (W/m^2)."""
         return max(0.0, float(I_solar)) * 100.0 * 0.15
 
+    #: 前馈律的比例修正增益 [W/K]（**小**修正；主导项是前馈）
+    FEEDFORWARD_KP_W_PER_K = 400.0
+
+    def _feedforward_power(self, T_in: float, T_set: float,
+                           T_out: float | None) -> tuple[float, bool]:
+        """稳态前馈 + 小比例修正 → (电功率 [W], 是否制热)。
+
+        前馈：维持设定值所需的稳态热流 `Q_ss = UA·(T_out − T_set) + Q_gains`（正 = 需制冷），
+        其中 `Q_gains` 取**办公时段满内热**（人员+设备+照明）作为保守上界；电功率 = |Q| / COP。
+        修正：`Kp·(T_in − T_set)`。限幅 `[0, q_ac_max_w]`，**无 30% 地板**。
+        `T_out is None` 时前馈项置 0（退化为纯比例）——**不假装知道室外温度**。
+
+        ⚠️ 单位命名不一致（我读代码时发现，如实记录）：`settings.Q_AC_MAX` 的注释是
+        "额定制冷量 [W]"（热），但旧律与 ThermalModel 都把它当**电功率**用
+        （`Q_ac = power_ac × COP`）。这里沿用"电功率上限"的既有语义以保持可比，
+        但**注释与命名值得单独修正** —— 这正是让深度核查把 3500×3 算成"10500 W 冷量"的同一个 slip。
+        """
+        gains = settings.Q_PEOPLE + settings.Q_EQUIP + settings.POWER_LIGHT_MAX
+        q_ss = 0.0 if T_out is None else self.ua_w_per_k * (float(T_out) - float(T_set)) + gains
+        q_cmd = q_ss + self.FEEDFORWARD_KP_W_PER_K * (T_in - T_set)   # 正 = 需制冷
+        is_heating = q_cmd < 0.0
+        cop = settings.COP_HEATING if is_heating else settings.COP_COOLING
+        return min(self.q_ac_max_w, abs(q_cmd) / cop), is_heating
+
     # ── Main control evaluation ─────────────────────────────────────
     def compute_action(
         self,
@@ -166,6 +203,7 @@ class RuleBasedController:
         *,
         current_time_s: float = 0.0,
         indoor_lux: float | None = None,
+        T_out: float | None = None,
     ) -> ControlAction:
         """Evaluate control action for one cycle.
 
@@ -223,12 +261,19 @@ class RuleBasedController:
                     self.ac_state.blocked_switch_requests += 1
 
         # -- AC power computation --
-        power_ac = 0.0
-        if self.ac_state.running:
-            delta = max(0.0, float(T_in) - T_set) if not self.ac_heating \
-                    else max(0.0, T_set - float(T_in))
-            power_ratio = min(1.0, delta / 3.0)
-            power_ac = settings.Q_AC_MAX * max(0.3, power_ratio)
+        # 前馈律（可选）：稳态前馈 + 小比例修正，**没有 30% 功率地板**。
+        # 出处：《docs/deep-audit-report.md》§1.5 问题①②——30% 地板等价于"一开机就过冲到稳态"，
+        # 比例带 3 K 在 θ≈0 的世界里毫无意义；一旦设备够大，旧律立刻变成 ±13 K 无阻尼振荡。
+        if self.control_law == "feedforward" and self.ac_state.running:
+            power_ac, want_heating = self._feedforward_power(float(T_in), T_set, T_out)
+            self.ac_heating = want_heating
+        else:
+            power_ac = 0.0
+            if self.ac_state.running:
+                delta = max(0.0, float(T_in) - T_set) if not self.ac_heating \
+                        else max(0.0, T_set - float(T_in))
+                power_ratio = min(1.0, delta / 3.0)
+                power_ac = self.q_ac_max_w * max(0.3, power_ratio)
 
         # -- Lighting --
         power_light = self._compute_lighting(hour, indoor_lux, I_solar)

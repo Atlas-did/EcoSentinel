@@ -6,7 +6,8 @@ from energy_system.algorithms.comfort_eval import evaluate_comfort
 from typing import Any
 
 class Simulator:
-    def __init__(self, mode="baseline", seed: int = 42, mode_schedule=None, params=None):
+    def __init__(self, mode="baseline", seed: int = 42, mode_schedule=None, params=None,
+                 control_law="bangbang"):
         """mode_schedule(t_seconds) -> "baseline" | "saving"，用于 ASO 交替实验。
 
         为 None 时行为与改动前**逐位一致**（单一控制器、固定模式）——由
@@ -19,10 +20,19 @@ class Simulator:
         self.mode = mode
         self.dt = settings.TIME_STEP
         self.model = ThermalModel(params=params)
-        self.controller = RuleBasedController(mode=mode)
+        self.controller = RuleBasedController(
+            mode=mode, control_law=control_law,
+            ua_w_per_k=self.model.U_wall * self.model.A_wall,
+        )
         # 两个控制器都建好，按调度切换（不依赖 RuleBasedController 内部是否缓存 mode）
         self.mode_schedule = mode_schedule
-        self._controllers = {"baseline": self.controller, "saving": RuleBasedController(mode="saving")}
+        self._controllers = {
+            "baseline": self.controller,
+            "saving": RuleBasedController(
+                mode="saving", control_law=control_law,
+                ua_w_per_k=self.model.U_wall * self.model.A_wall,
+            ),
+        }
         # 每个 Simulator 实例持有独立随机游走状态，避免互相干扰
         self.env_gen = EnvironmentGenerator(seed=seed)
         
@@ -62,6 +72,7 @@ class Simulator:
                 hour,
                 current_time_s=t,
                 indoor_lux=indoor_lux,
+                T_out=T_out,
             )
             T_in_new, _ = self.model.step(
                 T_in_current, T_out, I_solar, hour, action.power_ac, action.is_heating

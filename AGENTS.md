@@ -11,26 +11,49 @@ ESP32-S3 边缘环境监测 + AI 节能控制：Python 边缘服务（`energy_sy
 ## 1. 五分钟上手（不需要硬件）
 
 ```bash
-pip install -r requirements.txt
-python -m pytest tests -q                        # 应全绿（2026-10 基线 164 passed）
-python energy_system/simulation/compare.py       # 确定性仿真：baseline vs saving
-streamlit run dashboard.py                       # 可选：看板
+python -m venv .venv && . .venv/Scripts/activate   # Windows（Linux/macOS: . .venv/bin/activate）
+pip install -r requirements.txt                    # 核心：API / 固件工具 / 测试
+python -m pytest tests -q                          # 应全绿（2026-10 基线 251 passed）
+python -m energy_system.simulation.compare         # 确定性仿真：baseline vs saving
+python scripts/stack_acceptance.py                 # 一条命令自证"整栈健康"（起 API→打端点→校验 schema→退出码）
 ```
 
-前端：`cd app && npm ci && npm run lint && npm run build`
+可选（只有要用 Streamlit 看板时才装，见 `requirements-dashboard.txt`，会多出 streamlit/pandas/matplotlib）：
+
+```bash
+pip install -r requirements-dashboard.txt
+python -m streamlit run dashboard.py
+```
+
+前端（三道门禁都要过）：
+
+```bash
+cd app && npm ci && npm run lint && npm run knip && npm test && npm run build
+```
+
+> ⚠️ **两条已知陷阱**（2026-10 已修复，但历史文档/旧截图里可能仍是错的）：
+> 1. 仿真对比**必须**用 `python -m energy_system.simulation.compare`；写成
+>    `python energy_system/simulation/compare.py` 会 `ModuleNotFoundError`。
+> 2. 节能率**现行口径是 17.6%**（建筑参数为演示级、未标定）。仓库历史与旧材料里出现过
+>    **29.6% / 29.8% / 29.9%** —— 那些出自热模型显式欧拉**发散**时的无效仿真，**已作废**，
+>    不要在总结/答辩材料里再引用（`tests/contract/test_metrics_registry.py` 会拦住前端回潮）。
 
 ## 2. 门禁与"绿"的定义
 
-CI 共 4 个 job，**全绿才算过**：
+CI 共 4 个 job，**全绿才算过**（`main` 分支每次 push 都会跑）：
 
 | job | 本地等价命令 | 期望 |
 |---|---|---|
 | Python tests & simulation smoke | `python -m pytest tests -q` | 退出码 0 |
 | （同上） | `python -m energy_system.simulation.compare` | 退出码 0 |
-| Compile check | `python -m compileall -q energy_system main.py api_server.py dashboard.py` | 退出码 0 |
-| React lint & build | `cd app && npm run lint && npm run build` | 退出码 0 |
+| （同上） | `python -m compileall -q energy_system main.py api_server.py dashboard.py` | 退出码 0 |
+| React lint & build | `cd app && npm run lint && npm run knip && npm test && npm run build` | 退出码 0 |
 | Secret scan | （CI 用 gitleaks） | 无密钥入库 |
 | **Firmware build** | 见 §4 | 退出码 0 |
+
+> `knip`（死代码）与 `vitest`（前端单测）**是硬门禁**：knip 零豁免，vitest 当前 56 条。
+> 本地 `python -m compileall` 在某些受限沙箱里会因**不可写 `__pycache__`** 而失败 —— 那是环境问题、
+> 不是代码问题；以 CI 的编译检查为准，本地可用只读 AST 扫描替代。
 
 ## 3. 上板验收（拿到 ESP32-S3 之后）
 

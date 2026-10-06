@@ -256,6 +256,24 @@ class TestFrontendSingleSource(unittest.TestCase):
     #: 图表**结构色**（网格线 / 坐标轴 / 刻度文字）—— 与任何指标无关，允许就地写字面量
     CHART_CHROME_COLORS = {"#1e293b", "#334155", "#475569"}
 
+    def test_agent_entry_doc_uses_runnable_commands(self):
+        """AGENTS.md **代码块里的命令**必须真能跑（正文里为了说明可以引用错误写法）。
+
+        实测教训：README 里那条脚本式调用已修，但 AGENTS.md 里同一处**漏改**（会
+        ModuleNotFoundError）。这类"入口文档过期"最伤交接，故只对 fenced code block 设门禁。
+        """
+        agents = (PROJECT_ROOT / "AGENTS.md").read_text(encoding="utf-8")
+        blocks = re.findall(r"```[a-z]*\n(.*?)```", agents, re.DOTALL)
+        self.assertTrue(blocks, "AGENTS.md 应包含可执行的代码块")
+        joined = "\n".join(blocks)
+        self.assertNotIn(
+            "python energy_system/simulation/compare.py",
+            joined,
+            "AGENTS.md 的代码块里又写回了会 ModuleNotFoundError 的命令（应为 python -m ...）",
+        )
+        for expected in ("python -m energy_system.simulation.compare", "stack_acceptance.py"):
+            self.assertIn(expected, joined, f"AGENTS.md 代码块应包含：{expected}")
+
     def test_polling_is_started_only_from_the_layout_root(self):
         """轮询只能在布局根启动（评审 §8 第 4 步）。
 

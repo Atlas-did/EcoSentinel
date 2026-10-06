@@ -86,3 +86,35 @@ dshmarket@1.66.5
 4. `cd app && npm ci && npm run lint && npm run knip && npm test && npm run build`（**56 passed**）
 5. 需要视觉工作时 `dsh --profile desktop plugin list` 确认 `dsh-vision-router` 在；本机装插件用
    `dsh --profile desktop plugin add <pkg>`
+
+## 7. 附：DSH 的三类扩展 + 本机自研 STM32 套件（重要补充）
+
+### 7.1 DSH 的扩展其实有三类（实测）
+
+| 类型 | 落点（本机实测） | 怎么装 |
+|---|---|---|
+| **npm 插件** | `$DSH_HOME/profiles/<profile>/package.json` 的 pnpm 依赖 | `dsh --profile desktop plugin add <pkg>` |
+| **技能（Skill）** | `$DSH_HOME/skills/<name>/SKILL.md`（本机只有 `vision-multimodal`） | 把技能目录放进该目录即可 |
+| **MCP 服务器** | —— | ⚠️ **我未核实 DSH 注册 MCP 的确切方式**（`settings.yaml` 里是否有 `mcp` 段没查），下面只写"该套件提供了什么" |
+
+### 7.2 本机已有的 STM32 全自动调试套件（**队友若做 STM32 必装；但对 EcoSentinel 不适用**）
+
+- **它是什么**：`STM32 AutoDebug Universal Kit` **v2.4.5**（MIT，`TaoCosmo-Dev/STM32_AutoDebug_Universal_Kit`），
+  自带 169 项离线自测。定位是"**面向 AI 代理的 STM32 闭环开发工具链**：编译、烧录、实机验证、崩溃归因，
+  全部命令行驱动，**结果以退出码交付**" —— 与本项目的 `scripts/firmware_acceptance.py` 是同一种设计哲学。
+- **本机位置**：`D:\SeaBreeze Inspector\_archive\stm32_kit`（⚠️ 在 `_archive` 下，建议移到不会被清理的目录）。
+- **组成**：`skills/stm32-autodebug/SKILL.md`（技能）+ `mcp_server.py`（**MCP stdio 服务器**，11 个工具：
+  `stm32_list_devices` / `stm32_build` / `stm32_flash` / `stm32_closed_loop` / `stm32_read_registers` /
+  `stm32_diagnose_address` / `stm32_inject` / `stm32_project_edit` / `stm32_install_tracer` /
+  `stm32_check_firmware` / `ping`）+ `mcu_support/cm_backtrace_lite.*`（崩溃归因）+ `install_skill.py` /
+  `inject_to_project.py` + 自带 CI。
+- **⚠️ 坑（实测）**：`install_skill.py` 的目标目录是 `.agents` / `.claude` / `.cursor` / `.cline` / `.gemini` /
+  `.codex` / `.windsurf` —— **不含 `.dsh`** ⇒ **DSH 队友直接跑它，技能不会落到 DSH 能读到的地方**。
+  给 DSH 用要额外做一步：把 `skills/stm32-autodebug/` 复制到 `$DSH_HOME/skills/`（即
+  `C:\Users\finef\.dsh\skills\stm32-autodebug\SKILL.md`），MCP 服务器另按 §7.1 待核实的方式注册。
+- **对 EcoSentinel 的适用性**：**不适用** ✗ —— 它限定 **STM32 / Cortex-M + Keil MDK（Windows）+ SWD 探针**，
+  而本项目是 **ESP32-S3 + arduino-cli**，目标是 `esp32:esp32@3.3.7`（见 `.github/workflows`）。
+  它的价值在于：①队里另做 STM32 项目时直接可用；②它"退出码交付 + 闭环验证"的做法，
+  与我们固件侧的验收令牌（`ECO_SELFTEST_PASS`）+ 5 级退出码 + CI 编译门禁是同一套思路。
+- **更正说明**：这个套件我在早期评估过（结论"对 ESP32 项目不适用"），但写本指南第一版时**漏掉了它** ✗，
+  经用户提醒后补入本节 ✓。

@@ -6,11 +6,20 @@ from energy_system.algorithms.comfort_eval import evaluate_comfort
 from typing import Any
 
 class Simulator:
-    def __init__(self, mode="baseline", seed: int = 42):
+    def __init__(self, mode="baseline", seed: int = 42, mode_schedule=None):
+        """mode_schedule(t_seconds) -> "baseline" | "saving"，用于 ASO 交替实验。
+
+        为 None 时行为与改动前**逐位一致**（单一控制器、固定模式）——由
+        tests/contract/test_simulation_baseline.py 的 golden 断言守护。
+        ASO（自动系统优化交替）见 energy_system/simulation/aso_experiment.py。
+        """
         self.mode = mode
         self.dt = settings.TIME_STEP
         self.model = ThermalModel()
         self.controller = RuleBasedController(mode=mode)
+        # 两个控制器都建好，按调度切换（不依赖 RuleBasedController 内部是否缓存 mode）
+        self.mode_schedule = mode_schedule
+        self._controllers = {"baseline": self.controller, "saving": RuleBasedController(mode="saving")}
         # 每个 Simulator 实例持有独立随机游走状态，避免互相干扰
         self.env_gen = EnvironmentGenerator(seed=seed)
         
@@ -28,7 +37,8 @@ class Simulator:
             "T_in": [],
             "T_set": [],
             "power_total": [],
-            "comfort": []
+            "comfort": [],
+            "mode": [],
         }
         
         total_energy_j = 0.0
@@ -40,8 +50,10 @@ class Simulator:
             humidity = self.env_gen.generate_humidity(t, use_random_walk=True)
             indoor_lux = max(0.0, float(I_solar)) * 100.0 * 0.15
 
-            # 2. 控制器求取干预项
-            action = self.controller.compute_action(
+            # 2. 控制器求取干预项（ASO 模式下按调度逐段切换控制器）
+            mode_now = self.mode if self.mode_schedule is None else self.mode_schedule(t)
+            controller = self._controllers.get(mode_now, self.controller)
+            action = controller.compute_action(
                 T_in_current,
                 I_solar,
                 hour,
@@ -69,6 +81,7 @@ class Simulator:
             history["T_set"].append(action.t_set)
             history["power_total"].append(power_total)
             history["comfort"].append(comfort)
+            history["mode"].append(mode_now)
             
             # 前推赋值
             T_in_current = T_in_new

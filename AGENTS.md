@@ -42,7 +42,8 @@ cd app && npm ci && npm run lint && npm run knip && npm test && npm run build
 `docs/audit-response.md`（**第三方审计逐条应答表**：状态/证据/门禁/变异验证，复测先看这份）、
 `docs/dsh-plugins-guide.md`（队友的 DSH 插件配置与命令）、
 `docs/pmv-ppd-study.md`（ISO 7730 PMV/PPD 实测 + Sinergym 交叉核对）、
-`docs/reference-repos-study.md`（评审 §6 的参考仓库：该套用什么、不该套用什么）。
+`docs/reference-repos-study.md`（评审 §6 的参考仓库：该套用什么、不该套用什么）、
+`docs/hardware-runbook.md`（**上板实测 runbook**：验收命令、辨识数据的采样率与记录约定、安全注意）。
 
 ## 2. 门禁与"绿"的定义
 

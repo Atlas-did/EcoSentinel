@@ -73,35 +73,43 @@ PARAMETER_SETS = {
 ACTIVE_PARAMETER_SET = "demo"
 
 
-def parameter_set(name: str = ACTIVE_PARAMETER_SET) -> dict:
-    """返回具名参数集（含 source）。未知名字直接报错，不静默回退。"""
-    if name not in PARAMETER_SETS:
-        raise KeyError(f"未知参数集 {name!r}；可选：{sorted(PARAMETER_SETS)}")
-    return PARAMETER_SETS[name]
+def parameter_set(name: str | None = None) -> dict:
+    """返回具名参数集（含 source）。未知名字直接报错，不静默回退。
+
+    ⚠️ 默认参数写成 `None` 再在函数内解析，而不是 `name=ACTIVE_PARAMETER_SET`：
+    后者是**定义时求值** ⇒ 将来改了 `ACTIVE_PARAMETER_SET`，默认值仍指向旧的那个（经典坑）。
+    """
+    resolved = ACTIVE_PARAMETER_SET if name is None else name
+    if resolved not in PARAMETER_SETS:
+        raise KeyError(f"未知参数集 {resolved!r}；可选：{sorted(PARAMETER_SETS)}")
+    return PARAMETER_SETS[resolved]
 
 
-def check_parameter_set(name: str = ACTIVE_PARAMETER_SET) -> dict:
+def check_parameter_set(name: str | None = None) -> dict:
     """校验参数集的**热惯性联合约束**，返回 UA/τ/θ；不满足则抛 ValueError。
 
     约束：`C/UA > dt/ln(1/0.9)`（等价 θ = exp(-dt/τ) > 0.9，即"一步后仍保留 >90% 记忆"）。
     这条不等式就是"模型有没有热惯性"的可断言形式 —— 深度核查的核心指控即 θ≈4e-10。
+
+    默认参数同 `parameter_set`：`None` ⇒ 取**当前**的 `ACTIVE_PARAMETER_SET`（不在定义时求值）。
     """
     import math
 
-    values = parameter_set(name)
+    resolved = ACTIVE_PARAMETER_SET if name is None else name
+    values = parameter_set(resolved)
     ua = float(values["U_WALL"]) * float(values["A_WALL"])
     c_air = float(values["C_AIR"])
     if ua <= 0 or c_air <= 0:
-        raise ValueError(f"{name}: UA 与 C_AIR 必须为正（UA={ua}，C_AIR={c_air}）")
+        raise ValueError(f"{resolved}: UA 与 C_AIR 必须为正（UA={ua}，C_AIR={c_air}）")
     tau = c_air / ua
     theta = math.exp(-TIME_STEP / tau)
     min_tau = TIME_STEP / math.log(1.0 / 0.9)
     if tau <= min_tau:
         raise ValueError(
-            f"{name}: 热惯性不足 —— τ=C/UA={tau:.1f} s 未超过门槛 {min_tau:.1f} s"
+            f"{resolved}: 热惯性不足 —— τ=C/UA={tau:.1f} s 未超过门槛 {min_tau:.1f} s"
             f"（θ=exp(-dt/τ)={theta:.4f} ≤ 0.9）⇒ 该参数下「什么时候用电」的策略原理上无法体现"
         )
-    return {"name": name, "UA_w_per_k": ua, "C_j_per_k": c_air, "tau_s": tau,
+    return {"name": resolved, "UA_w_per_k": ua, "C_j_per_k": c_air, "tau_s": tau,
             "theta": theta, "min_tau_s": min_tau, "source": values["source"]}
 
 ALPHA_SOLAR = 0.7     # 太阳辐射得热系数（含玻璃透射+内表面吸收）

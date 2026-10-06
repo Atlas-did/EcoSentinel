@@ -67,5 +67,52 @@ class TestParameterSets(unittest.TestCase):
         self.assertIn("演示", PARAMETER_SETS["demo"]["source"])
 
 
+class TestDefaultParameterIsResolvedAtCallTime(unittest.TestCase):
+    """③ 修默认参数坑：`name=ACTIVE_PARAMETER_SET` 是**定义时求值** ⇒ 改了 ACTIVE 默认仍指旧值。
+
+    这里用 monkeypatch 把 ACTIVE_PARAMETER_SET 指到 demo，然后**不传参**调用，
+    默认必须跟随到 demo（若签名退回定义时求值，本用例会红 —— 见变异验证）。
+    """
+
+    def test_signature_default_is_none_not_the_active_set(self):
+        """★ 对**机制**敏感的断言（行为探针观察不到差异，见下）：
+
+        `name=ACTIVE_PARAMETER_SET` 与 `name=None` 在"ACTIVE 从未改动"时**行为相同** ⇒
+        行为型用例抓不到回归（我第一次的变异就是这样没变红）。故这里直接断言签名默认值是 `None`，
+        一退回定义时求值就立刻变红。
+        """
+        import inspect
+
+        from energy_system.config import settings as s
+
+        for func in (s.parameter_set, s.check_parameter_set):
+            default = inspect.signature(func).parameters["name"].default
+            self.assertIs(default, None, f"{func.__name__} 的 name 默认值必须是 None（调用时解析）")
+
+    def test_default_follows_the_current_active_set(self):
+        from energy_system.config import settings as s
+
+        original = s.ACTIVE_PARAMETER_SET
+        try:
+            s.ACTIVE_PARAMETER_SET = "demo"
+            self.assertEqual(parameter_set()["source"], s.PARAMETER_SETS["demo"]["source"])
+            with self.assertRaises(ValueError):
+                check_parameter_set()          # demo 不满足惯性约束 ⇒ 默认必须指向 demo
+            s.ACTIVE_PARAMETER_SET = "realistic"
+            self.assertGreater(check_parameter_set()["theta"], 0.9)
+        finally:
+            s.ACTIVE_PARAMETER_SET = original
+
+    def test_explicit_name_still_wins(self):
+        from energy_system.config import settings as s
+
+        original = s.ACTIVE_PARAMETER_SET
+        try:
+            s.ACTIVE_PARAMETER_SET = "demo"
+            self.assertEqual(parameter_set("realistic")["C_AIR"], 430000.0)
+        finally:
+            s.ACTIVE_PARAMETER_SET = original
+
+
 if __name__ == "__main__":
     unittest.main()

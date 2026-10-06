@@ -18,6 +18,7 @@ from datetime import datetime
 from pathlib import Path
 
 from energy_system.algorithms.energy_saving import calculate_savings
+from energy_system.algorithms.peak_kpi import peak_power_15min_kw_from_settings
 from energy_system.config import settings
 from energy_system.domain.metrics import descriptive_stats
 from energy_system.experiments.manifest import ExperimentManifest, config_hash
@@ -29,6 +30,22 @@ SCHEMA_VERSION = "1.0"
 SIM_SEED = 42
 INITIAL_TEMP_C = 20.0
 DURATION_DAYS = 3
+
+
+def _code_version() -> str:
+    """当前代码版本（git SHA）。取不到时返回 "unknown" —— **不编造**。
+
+    出处：Beobench 的版本硬门禁思想（`experiment/config_parser.py::check_config`）—— 报告必须能回答
+    "这组数字对应哪个版本"。此处只**记录**；CI 侧的一致性校验（与 HEAD 比对）尚未实现。
+    """
+    try:
+        import subprocess
+
+        proc = subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True, text=True, timeout=5)
+        sha = (proc.stdout or "").strip()
+        return sha if len(sha) == 40 else "unknown"
+    except Exception:  # noqa: BLE001 —— 无 git / 非仓库 / 超时 一律 unknown
+        return "unknown"
 
 
 def _comfort_mean(history: dict) -> float:
@@ -51,6 +68,10 @@ def run_compare(duration_days: int = DURATION_DAYS, seed: int = SIM_SEED) -> dic
     report = calculate_savings(history_base["total_kwh"], history_save["total_kwh"])
     comfort_base = _comfort_mean(history_base)
     comfort_save = _comfort_mean(history_save)
+    # 峰值：**先按 15 分钟窗口取均值，再取 max**（BOPTEST kpi_calculator.py:404-406）。
+    # 同时保留未降采样的单点最大，让读者看到两者差异，而不是被替换掉。
+    peak_base = peak_power_15min_kw_from_settings(history_base["power_total"])
+    peak_save = peak_power_15min_kw_from_settings(history_save["power_total"])
     comfort_base_stats = descriptive_stats(history_base.get("comfort") or [])
     comfort_save_stats = descriptive_stats(history_save.get("comfort") or [])
 
@@ -92,6 +113,7 @@ def run_compare(duration_days: int = DURATION_DAYS, seed: int = SIM_SEED) -> dic
 
     result = {
         "schema_version": SCHEMA_VERSION,
+        "code_version": _code_version(),
         "experiment_id": experiment_id,
         "generated_at": datetime.now().isoformat(),
         "config_hash": manifest.config_hash,
@@ -107,6 +129,17 @@ def run_compare(duration_days: int = DURATION_DAYS, seed: int = SIM_SEED) -> dic
             "saving_comfort_mean": round(comfort_save, 3),
             "baseline_comfort_stats": comfort_base_stats,
             "saving_comfort_stats": comfort_save_stats,
+            # ── 峰值口径（BOPTEST 15T resample + area 归一）──────────────────────────
+            # `*_peak_15min_kw` 是"15 分钟窗口均值的最大值"；`*_peak_raw_max_kw` 是未降采样的
+            # 单点最大 —— 两者**并列**给出；单点最大在 300s 步长下可能只是步长/求解器产物。
+            "baseline_peak_15min_kw": peak_base["peak_kw"],
+            "saving_peak_15min_kw": peak_save["peak_kw"],
+            "baseline_peak_raw_max_kw": peak_base["raw_max_kw"],
+            "saving_peak_raw_max_kw": peak_save["raw_max_kw"],
+            "peak_window_s": peak_base["window_s"],
+            "baseline_peak_w_per_m2": peak_base["peak_w_per_m2"],
+            #: 建筑面积只用于**报告归一化**，不进入热模型（settings.FLOOR_AREA_M2，来源为本文件既有假设）
+            "area_m2": float(getattr(settings, "FLOOR_AREA_M2", 0.0)) or None,
         },
     }
     return result

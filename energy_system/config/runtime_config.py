@@ -64,9 +64,15 @@ class SelfHealingConfig:
 
 @dataclass(frozen=True)
 class ApiConfig:
-    # Allowed CORS origins. Defaults are local dev frontends only; production must
-    # provide an explicit allowlist. Never use ["*"] together with credentials.
-    cors_origins: tuple[str, ...] = ("http://localhost:5173", "http://127.0.0.1:5173")
+    # Allowed CORS origins. Defaults cover the Vite dev server (3000, see app/vite.config.ts)
+    # and Vite's preview default (5173); production must provide an explicit allowlist.
+    # Never use ["*"] together with credentials. 一致性由 tests/contract/test_dev_port_contract.py 守卫。
+    cors_origins: tuple[str, ...] = (
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+    )
     allow_credentials: bool = False
 
 

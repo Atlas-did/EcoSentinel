@@ -1,0 +1,4 @@
+mode,total_kwh,band_share,comfort_mean_legacy,t_in_mean,t_in_min,t_in_max
+do_nothing,13.05,0.256,0.476,29.91,23.74,35.93
+baseline,199.10,0.417,0.493,26.48,21.36,37.47
+saving,164.01,0.206,0.491,27.33,19.70,37.47

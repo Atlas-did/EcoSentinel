@@ -168,6 +168,20 @@ class RuleBasedController:
         Returns:
             ControlAction with AC power, heating flag, light power, and setpoint.
         """
+        # ── 对照组："什么也不做" ──────────────────────────────────────────
+        # 出处：BOPTEST 的空动作 baseline（`examples/python/controllers/baseline.py:29-31` 返回 `u={}`），
+        # 但**语义在本仓不同**：BOPTEST 的模型自带 PI thermostat，空动作 = "把控制权交还建筑本体"；
+        # 我们的 1R1C 模型**没有任何自带控制器**，所以"什么也不做"只能是**空调与照明都不动作**，
+        # 只保留不可控的内热/设备热（由 simulator 的 power_equip 项体现）。
+        # `t_set` 记为当前室温：它表示"没有目标温度"，而不是"目标=室温"。
+        if self.mode == "do_nothing":
+            return ControlAction(
+                power_ac=0.0,
+                is_heating=False,
+                power_light=0.0,
+                t_set=float(T_in),
+            )
+
         T_set = self.get_temperature_setpoint(hour)
         upper_limit = T_set + 0.5
         lower_limit = T_set - 0.5

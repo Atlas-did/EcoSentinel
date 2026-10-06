@@ -256,6 +256,22 @@ class TestFrontendSingleSource(unittest.TestCase):
     #: 图表**结构色**（网格线 / 坐标轴 / 刻度文字）—— 与任何指标无关，允许就地写字面量
     CHART_CHROME_COLORS = {"#1e293b", "#334155", "#475569"}
 
+    def test_polling_is_started_only_from_the_layout_root(self):
+        """轮询只能在布局根启动（评审 §8 第 4 步）。
+
+        此前只有 DashboardPage / RealtimePage 各自 useEffect 启停，切到 AI/能源/健康/仿真页
+        就停止刷新；统一到 App.tsx 的 AppLayout 后，任何页面都在轮询。
+        """
+        root = PROJECT_ROOT / "app" / "src"
+        callers = []
+        for path in sorted(root.rglob("*.tsx")):
+            text = path.read_text(encoding="utf-8")
+            if "startAutoRefresh(" in text or "stopAutoRefresh(" in text:
+                callers.append(str(path.relative_to(PROJECT_ROOT)).replace("\\", "/"))
+        self.assertEqual(
+            callers, ["app/src/App.tsx"], f"轮询启停只应出现在布局根，实际出现在：{callers}"
+        )
+
     def test_no_fabricated_mode_badges(self):
         """系统模式/安全锁不得用固定字样冒充真实状态（评审 §1.3 第 3 条）。
 

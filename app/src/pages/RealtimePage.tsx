@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { useAppStore, startAutoRefresh, stopAutoRefresh } from '@/store/useAppStore';
+import { useState } from 'react';
+import { useAppStore } from '@/store/useAppStore';
 import { motion } from 'framer-motion';
 import {
   Activity,
@@ -20,10 +20,7 @@ export default function RealtimePage() {
     defaultActiveSensors(),
   );
 
-  useEffect(() => {
-    startAutoRefresh();
-    return () => stopAutoRefresh();
-  }, []);
+  // 轮询已统一到 App.tsx 的 AppLayout（评审 §8 第 4 步），此处不再重复启停
 
   const toggleSensor = (key: string) => {
     setActiveSensors((prev) => ({ ...prev, [key]: !prev[key] }));

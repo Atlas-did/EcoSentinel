@@ -1,5 +1,4 @@
-import { useEffect } from 'react';
-import { useAppStore, startAutoRefresh, stopAutoRefresh } from '@/store/useAppStore';
+import { useAppStore } from '@/store/useAppStore';
 import { motion } from 'framer-motion';
 import {
   Thermometer,
@@ -38,10 +37,7 @@ export default function DashboardPage() {
     backendOnline,
   } = useAppStore();
 
-  useEffect(() => {
-    startAutoRefresh();
-    return () => stopAutoRefresh();
-  }, []);
+  // 轮询已统一到 App.tsx 的 AppLayout（评审 §8 第 4 步），此处不再重复启停
 
   // 端口/传感器的"在线"必须来自**真实快照**，不能写死 true（评审 §1.3 第 3 条：
   // 界面不能展示没有数据来源的状态）。没有任何采样的字段一律视为离线。

@@ -3,7 +3,26 @@ import math
 from energy_system.config import settings
 
 class ThermalModel:
-    def __init__(self):
+    """一阶 RC 模型。支持**可选参数覆盖**，用于在不改默认值的前提下跑反事实场景。
+
+    出处：《docs/deep-audit-report.md》第 5 章要求先在"真实量级"参数下验证控制律，
+    而用户批准的边界是**绝不改默认值** ⇒ 故走 `params=` 覆盖，默认 `None` ⇒ 行为逐位不变
+    （由 tests/contract/test_simulation_baseline.py 的 golden 持续守护）。
+    """
+
+    #: 允许覆盖的参数键 → 实例属性名（其余仍读 settings）
+    OVERRIDABLE_ATTRS = {
+        "C_AIR": "C_air",
+        "U_WALL": "U_wall",
+        "A_WALL": "A_wall",
+        "ALPHA_SOLAR": "alpha_solar",
+        "A_WINDOW": "A_window",
+        "Q_PEOPLE": "Q_people",
+        "Q_EQUIP": "Q_equip",
+        "TIME_STEP": "dt",
+    }
+
+    def __init__(self, params: dict | None = None):
         self.dt = settings.TIME_STEP
         # 内部发热参数
         self.Q_people = settings.Q_PEOPLE
@@ -13,6 +32,17 @@ class ThermalModel:
         self.A_wall = settings.A_WALL
         self.alpha_solar = settings.ALPHA_SOLAR
         self.A_window = settings.A_WINDOW
+
+        if params:
+            unknown = set(params) - set(self.OVERRIDABLE_ATTRS)
+            if unknown:
+                raise KeyError(
+                    f"不支持的参数覆盖：{sorted(unknown)}；可选 {sorted(self.OVERRIDABLE_ATTRS)}"
+                )
+            for key, value in params.items():
+                if not isinstance(value, (int, float)) or float(value) <= 0.0:
+                    raise ValueError(f"{key} 必须为正数，实得 {value!r}")
+                setattr(self, self.OVERRIDABLE_ATTRS[key], float(value))
 
     def step(self, T_in_old, T_out, I_solar, hour, power_ac_w, is_heating):
         """

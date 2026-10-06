@@ -56,6 +56,22 @@ Option C 回答"用回归 baseline 预测报告期工况，实际省了多少"�
 并都带上"仿真天数 / 未覆盖全工况 / 建筑参数未标定"的口径说明。
 （决策待定：对外主口径用哪个 —— 见 `docs/handoff.md` §4。）
 
+## 3ter. 报告层 KPI 口径与来源（2026-10 新增）
+
+`report-benchmarks.md` 调研了 BOPTEST / Beobench / FlexDRL / rl-testbed 四个克隆，结论是**只值得抄
+BOPTEST 的验证范式**。已落地的三项（各带门禁与变异验证）：
+
+| KPI | 口径 | 出处 | 门禁 |
+|---|---|---|---|
+| **舒适带内时间占比** | 落在 **[23, 26] ℃** 的时间占比 | IPMVP Core Concepts + Sinergym（队友审计促成的口径更正） | `tests/unit/test_comfort_band.py` |
+| **越界量时间积分** | 越界量按时间积分（温度 K·h、湿度 %·h、照度 lx·h），**分三项**报告 | BOPTEST `kpis/kpi_calculator.py:237-287`；分项来自 rl-testbed 的 reward 分解 | `tests/unit/test_comfort_kpi.py` |
+| **峰值功率** | **15 分钟窗口均值再取 max**（并**并列**给出单点最大） | BOPTEST `kpi_calculator.py:404-406` | `tests/unit/test_peak_kpi.py` + `tests/contract/test_report_fields.py` |
+| 空动作对照组 | `do_nothing`（空调与照明都不动作）+ 预生成参考 CSV | BOPTEST 空动作基线 + `baselines/README.md:32-37` | `tests/contract/test_control_groups.py` |
+| `code_version` / `short_cycle_blocks` | 仅报告：git SHA（取不到写 `unknown`）、被防抖拦下的切换请求数 | Beobench 版本门禁思想；rl-testbed F2 | `tests/contract/test_report_fields.py` |
+
+**口径不得混用的提醒**：能量（kWh）、带内占比（%）、越界积分（K·h）、峰值（kW）是**四种不同量纲**，
+任何"综合评分"都会把它们之间的权衡藏起来 —— 这正是旧 0–1 评分出现的问题（详见 README 的三条实测结论）。
+
 ## 4. 行为不变清单
 
 重构期间，以下行为不得在未获批准算法变更的情况下改变：

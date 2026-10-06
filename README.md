@@ -160,6 +160,34 @@ ecosentinel/
 > authority, and `C_AIR = τ·UA` for a 1–3 h time constant) requires measured data; see
 > `docs/hardware-runbook.md` and `scripts/identify_rc.py`. Until then this limitation must be stated
 > wherever the 17.6% is quoted.
+
+## Which KPIs this repo reports (and where each口径 comes from)
+
+Benchmarking study: `report-benchmarks.md` (BOPTEST / Beobench / FlexDRL / rl-testbed). BOPTEST is the only
+one worth learning from, and three of its decisions are now implemented — each with a gate and a mutation test:
+
+| KPI | 口径 | 出处 |
+|---|---|---|
+| energy | kWh over the run | — |
+| **comfort band share** | % of time inside **[23, 26] °C** | IPMVP Core Concepts ("percentage of time in comfort band") + Sinergym `range_comfort_summer`; teammate audit |
+| **comfort violation integral** | out-of-band amount **integrated over time** (K·h; humidity %·h; illuminance lx·h), split into three components | BOPTEST `kpis/kpi_calculator.py:237-287` (slack integral); component split from rl-testbed reward decomposition (`:242`) |
+| **peak power** | **15-minute window mean, then max** (plus the raw single-sample max, reported side by side) | BOPTEST `kpi_calculator.py:404-406` — a single-sample max at `dt=300 s` is a solver artefact, not a grid event |
+| `area_m2`, `code_version`, `short_cycle_blocks` | reporting only | area: BOPTEST normalisation; `code_version`: Beobench version gate idea; blocks: rl-testbed F2 (countable hard constraints) |
+
+**Three measured results these KPIs exist to expose** (3 days, seed 42 — all reproducible via
+`scripts/control_groups.py` and the gates):
+
+1. **"Saving energy" is not an achievement on its own.** `do_nothing` uses **13.05 kWh** vs the controller's
+   199.10 kWh (−93.4 %) — but its mean room temperature is **29.91 °C**. Any savings claim must be stated
+   *together with* the comfort constraint, otherwise "just switch the AC off" beats it.
+2. **The saving strategy is worse than doing nothing on the IPMVP metric**: band share **20.6 % vs 25.6 %**,
+   and its out-of-band integral is **141.88 K·h vs 95.03 K·h** for the fixed-setpoint baseline (+49 %).
+   The old 0–1 score hid this (0.493 → 0.491) partly because its **humidity component is identical in all
+   three modes** (248.44 %·h) — none of them controls humidity, so that term dilutes any temperature signal.
+3. **The anti-short-cycle logic works, and its counter explains the above**: the fixed-setpoint baseline is
+   blocked **111** times in 3 days, while the saving strategy is blocked **0** times — not because it is
+   efficient, but because it **barely actuates** (its 26–28 °C setpoints sit far above the achievable
+   ~27.3 °C). Its comfort cost is *inaction*, not a trade-off it chose.
 - **Dual-channel metering** (optional) — measure both load consumption + solar input simultaneously
 
 > ⚠️ **Simulation numbers are not field measurements.** With the current (uncalibrated, demo-grade)

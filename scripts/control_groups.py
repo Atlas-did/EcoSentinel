@@ -1,19 +1,15 @@
-"""三组对照运行器：do_nothing / baseline(建筑默认) / saving。
+"""对照矩阵：{do_nothing, baseline, saving} × {demo, realistic} × {bangbang, feedforward}。
 
-出处与方法（《report-benchmarks.md》P0-2 + BOPTEST 的基线范式）：
-- BOPTEST 的空动作基线返回 `u={}`（`examples/python/controllers/baseline.py:29-31`），
-  并由它**预生成参考值**（`baselines/README.md:32-37` 声明 3180 场景，产物是 `baselines/csv/*.csv`）。
-- 本仓的**修正**（必须说明，不能照抄）：我们的 1R1C 模型**没有自带 thermostat** ⇒
-  "空动作 = 交给建筑本体"在本仓不成立；`do_nothing` 只能是"空调与照明都不动作"。
-  另外 `baseline`（全天 24 ℃ 定值）**已经**扮演"建筑默认控制器"的角色，所以**不再新增
-  `building_default`** —— 那样会与 `baseline` 逐值相同，是冗余。
+出处：《docs/deep-audit-report.md》第 5 章 + 用户任务 ① —— 没有 **baseline 侧对照**，
+saving 在 realistic+前馈下的带内占比就没有参照，在 IPMVP 口径下站不住。
 
-用法：
-    python scripts/control_groups.py            # 与 tests/references/control_groups.csv 比对
-    python scripts/control_groups.py --write    # 重新生成参考 CSV（只在**有意**改动时用）
+⚠️ 口径铁律：`realistic` 是**文献量级假设、非实测**（见 settings.PARAMETER_SETS 的 source）。
+所有 realistic 行必须与该标签一起引用，**不得**当作实测结论。
+⚠️ `do_nothing` 不参与控制律 ⇒ 只按 params 出 2 行（control_law 记为 "-"），避免重复行。
 
-⚠️ 参考 CSV 是"跑一次、提交、之后当门禁"（同 BOPTEST `testing/utilities.py:302-304` 的做法），
-**不是**手写或拟合出来的数字。
+产物两份（`--write` 生成）：
+  tests/references/control_groups.csv      —— 10 行矩阵
+  tests/references/saving_vs_baseline.csv  —— 4 行配对对照（IPMVP 口径需要的那个差值）
 """
 
 from __future__ import annotations
@@ -27,108 +23,122 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from energy_system.algorithms.comfort_eval import (  # noqa: E402
-    evaluate_comfort,
-    time_in_band_share,
-)
+from energy_system.algorithms.comfort_kpi import violation_integral  # noqa: E402
+from energy_system.algorithms.comfort_eval import time_in_band_share  # noqa: E402
+from energy_system.algorithms.peak_kpi import peak_power_15min_kw_from_settings  # noqa: E402
+from energy_system.config.settings import PARAMETER_SETS  # noqa: E402
 from energy_system.simulation.simulator import Simulator  # noqa: E402
 
-REFERENCE = PROJECT_ROOT / "tests" / "references" / "control_groups.csv"
-DAYS = 3
-SEED = 42
-#: 三种对照：do_nothing = 不动作；baseline = 全天 24 ℃ 定值（承担"建筑默认控制器"角色）；
-#: saving = 本仓的节能策略（含 07–09 预冷 —— 注意本模型无热惯性，见 README）。
-MODES = ("do_nothing", "baseline", "saving")
+MATRIX_CSV = PROJECT_ROOT / "tests" / "references" / "control_groups.csv"
+PAIRED_CSV = PROJECT_ROOT / "tests" / "references" / "saving_vs_baseline.csv"
 
-FIELDS = (
-    "mode",
-    "total_kwh",
-    "band_share",
-    "comfort_mean_legacy",
-    "t_in_mean",
-    "t_in_min",
-    "t_in_max",
-)
+DAYS, SEED = 3, 42
+LAWS = ("bangbang", "feedforward")
+SETS = ("demo", "realistic")
+FIELDS = ("mode", "params", "control_law", "total_kwh", "band_share", "temp_violation_kh",
+          "peak_15min_kw", "t_in_mean", "t_in_min", "t_in_max")
+PAIRED_FIELDS = ("params", "control_law", "baseline_kwh", "saving_kwh", "saving_rate_percent",
+                 "band_share_baseline", "band_share_saving", "band_share_delta",
+                 "temp_violation_baseline_kh", "temp_violation_saving_kh", "temp_violation_delta_kh")
 
 
-def run_group(mode: str, days: int = DAYS, seed: int = SEED) -> dict:
-    history = Simulator(mode=mode, seed=seed).run_simulation(days=days)
-    t_in = history["T_in"]
-    humidity = history["humidity"]
+def _params(name: str) -> dict | None:
+    """demo 用 settings 默认值（传 None ⇒ 行为与历史逐位一致）；realistic 用集合里的值。"""
+    if name == "demo":
+        return None
+    values = PARAMETER_SETS[name]
+    return {k: values[k] for k in ("U_WALL", "A_WALL", "C_AIR")}
+
+
+def run_cell(mode: str, set_name: str, law: str) -> dict:
+    # do_nothing 用早退分支，行为与控制律无关 ⇒ 传合法律（避免触发校验），只把记录写成 "-"
+    effective_law = "bangbang" if law == "-" else law
+    history = Simulator(mode=mode, seed=SEED, params=_params(set_name),
+                        control_law=effective_law).run_simulation(days=DAYS)
+    track = history["T_in"]
+    peak = peak_power_15min_kw_from_settings(history["power_total"])
     return {
         "mode": mode,
+        "params": set_name,
+        "control_law": law,
         "total_kwh": round(history["total_kwh"], 3),
-        "band_share": round(time_in_band_share(t_in), 4),
-        "comfort_mean_legacy": round(
-            statistics.mean(evaluate_comfort(t, h) for t, h in zip(t_in, humidity)), 4
-        ),
-        "t_in_mean": round(statistics.mean(t_in), 3),
-        "t_in_min": round(min(t_in), 3),
-        "t_in_max": round(max(t_in), 3),
+        "band_share": round(time_in_band_share(track), 4),
+        "temp_violation_kh": round(violation_integral(track, 23.0, 26.0), 3),
+        "peak_15min_kw": peak["peak_kw"],
+        "t_in_mean": round(statistics.mean(track), 3),
+        "t_in_min": round(min(track), 3),
+        "t_in_max": round(max(track), 3),
     }
 
 
-def run_all(days: int = DAYS, seed: int = SEED) -> list[dict]:
-    return [run_group(mode, days=days, seed=seed) for mode in MODES]
+def run_matrix() -> list[dict]:
+    rows: list[dict] = []
+    for set_name in SETS:
+        for mode in ("do_nothing", "baseline", "saving"):
+            if mode == "do_nothing":
+                rows.append(run_cell(mode, set_name, "-"))
+                continue
+            for law in LAWS:
+                rows.append(run_cell(mode, set_name, law))
+    return rows
 
 
-def load_reference(path: Path = REFERENCE) -> list[dict]:
-    with path.open("r", encoding="utf-8-sig", newline="") as fh:
-        return [dict(row) for row in csv.DictReader(fh)]
+def run_paired(rows: list[dict]) -> list[dict]:
+    """每个 (params, law) 下 saving 相对同参同律 baseline 的配对差 —— IPMVP 口径需要的对照。"""
+    index = {(r["params"], r["control_law"], r["mode"]): r for r in rows}
+    out: list[dict] = []
+    for set_name in SETS:
+        for law in LAWS:
+            base = index[(set_name, law, "baseline")]
+            save = index[(set_name, law, "saving")]
+            out.append({
+                "params": set_name,
+                "control_law": law,
+                "baseline_kwh": base["total_kwh"],
+                "saving_kwh": save["total_kwh"],
+                "saving_rate_percent": round(
+                    (base["total_kwh"] - save["total_kwh"]) / base["total_kwh"] * 100.0, 2),
+                "band_share_baseline": base["band_share"],
+                "band_share_saving": save["band_share"],
+                "band_share_delta": round(save["band_share"] - base["band_share"], 4),
+                "temp_violation_baseline_kh": base["temp_violation_kh"],
+                "temp_violation_saving_kh": save["temp_violation_kh"],
+                "temp_violation_delta_kh": round(
+                    save["temp_violation_kh"] - base["temp_violation_kh"], 3),
+            })
+    return out
 
 
-def compare(rows: list[dict], reference: list[dict], tol_kwh: float = 0.05,
-            tol_share: float = 0.002) -> list[str]:
-    """返回不一致清单（空 = 一致）。数值容差与测试里一致。"""
-    problems: list[str] = []
-    if len(rows) != len(reference):
-        return [f"行数不一致：实得 {len(rows)}，参考 {len(reference)}"]
-    for got, want in zip(rows, reference):
-        if got["mode"] != want["mode"]:
-            problems.append(f"顺序不一致：{got['mode']} vs {want['mode']}")
-            continue
-        if abs(float(got["total_kwh"]) - float(want["total_kwh"])) > tol_kwh:
-            problems.append(f"{got['mode']}.total_kwh: {got['total_kwh']} vs 参考 {want['total_kwh']}")
-        if abs(float(got["band_share"]) - float(want["band_share"])) > tol_share:
-            problems.append(f"{got['mode']}.band_share: {got['band_share']} vs 参考 {want['band_share']}")
-    return problems
-
-
-def write_reference(rows: list[dict], path: Path = REFERENCE) -> None:
+def write_csv(rows: list[dict], fields: tuple, path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", encoding="utf-8", newline="") as fh:
-        writer = csv.DictWriter(fh, fieldnames=list(FIELDS))
+        writer = csv.DictWriter(fh, fieldnames=list(fields))
         writer.writeheader()
-        writer.writerows(rows)
+        writer.writerows([{k: r[k] for k in fields} for r in rows])
 
 
 def main(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(description="三组对照运行器（do_nothing / baseline / saving）")
-    ap.add_argument("--write", action="store_true", help="重新生成参考 CSV（有意改动时才用）")
-    ap.add_argument("--days", type=int, default=DAYS)
-    ap.add_argument("--seed", type=int, default=SEED)
+    ap = argparse.ArgumentParser(description="对照矩阵（含 baseline 侧）")
+    ap.add_argument("--write", action="store_true", help="重新生成两份参考 CSV")
     args = ap.parse_args(argv)
 
-    rows = run_all(days=args.days, seed=args.seed)
-    for row in rows:
-        print("  {mode:<12} {total_kwh:>8.2f} kWh  带内占比={band_share:>6.1%}  "
-              "旧评分={comfort_mean_legacy:.3f}  T_in=[{t_in_min:.2f}, {t_in_max:.2f}] 均值 {t_in_mean:.2f}".format(**row))
+    rows = run_matrix()
+    paired = run_paired(rows)
+    print("  {:<11} {:<10} {:<12} {:>8} {:>7} {:>9} {:>7}".format(
+        "mode", "params", "law", "kWh", "band", "viol K·h", "peak kW"))
+    for r in rows:
+        print("  {mode:<11} {params:<10} {control_law:<12} {total_kwh:>8.2f} "
+              "{band_share:>6.1%} {temp_violation_kh:>9.1f} {peak_15min_kw:>7.2f}".format(**r))
+    print("  --- saving 相对 baseline（IPMVP 口径需要的对照）---")
+    for p in paired:
+        print("  {params:<10} {control_law:<12} 节能 {saving_rate_percent:>6.2f}%  "
+              "带内占比 {band_share_baseline:.1%}→{band_share_saving:.1%} (Δ{band_share_delta:+.1%})  "
+              "越界 Δ{temp_violation_delta_kh:+.1f} K·h".format(**p))
 
     if args.write:
-        write_reference(rows)
-        print(f"  已写入参考：{REFERENCE.relative_to(PROJECT_ROOT)}")
-        return 0
-
-    if not REFERENCE.exists():
-        print(f"  [缺参考文件] {REFERENCE} 不存在；确认无误后跑 `--write` 生成")
-        return 2
-    problems = compare(rows, load_reference())
-    if problems:
-        print("  ❌ 与参考不一致：")
-        for item in problems:
-            print(f"     {item}")
-        return 1
-    print("  ✅ 与参考一致")
+        write_csv(rows, FIELDS, MATRIX_CSV)
+        write_csv(paired, PAIRED_FIELDS, PAIRED_CSV)
+        print("  已写入两份参考 CSV")
     return 0
 
 

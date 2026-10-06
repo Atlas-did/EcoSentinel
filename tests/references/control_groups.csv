@@ -1,4 +1,11 @@
-mode,total_kwh,band_share,comfort_mean_legacy,t_in_mean,t_in_min,t_in_max
-do_nothing,13.05,0.256,0.476,29.91,23.74,35.93
-baseline,199.10,0.417,0.493,26.48,21.36,37.47
-saving,164.01,0.206,0.491,27.33,19.70,37.47
+mode,params,control_law,total_kwh,band_share,temp_violation_kh,peak_15min_kw,t_in_mean,t_in_min,t_in_max
+do_nothing,demo,-,13.05,0.2558,305.343,0.4,29.909,23.742,35.931
+baseline,demo,bangbang,199.1,0.4167,95.03,5.1,26.477,21.357,37.465
+baseline,demo,feedforward,218.872,0.5324,73.318,5.1,25.998,22.226,30.098
+saving,demo,bangbang,164.012,0.206,141.876,5.1,27.328,19.705,37.465
+saving,demo,feedforward,184.163,0.2812,117.035,5.1,26.874,20.829,33.645
+do_nothing,realistic,-,13.05,0.0799,608.812,0.4,34.403,21.225,42.989
+baseline,realistic,bangbang,110.946,0.3356,82.608,3.3004,24.262,18.244,32.38
+baseline,realistic,feedforward,89.566,0.5995,28.578,2.8617,23.51,20.331,27.51
+saving,realistic,bangbang,90.466,0.3426,132.898,3.1668,25.804,18.055,36.201
+saving,realistic,feedforward,60.188,0.7731,12.314,2.0591,24.91,20.626,27.51

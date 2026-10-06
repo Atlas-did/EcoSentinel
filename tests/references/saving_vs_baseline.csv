@@ -1,0 +1,5 @@
+params,control_law,baseline_kwh,saving_kwh,saving_rate_percent,band_share_baseline,band_share_saving,band_share_delta,temp_violation_baseline_kh,temp_violation_saving_kh,temp_violation_delta_kh
+demo,bangbang,199.1,164.012,17.62,0.4167,0.206,-0.2107,95.03,141.876,46.846
+demo,feedforward,218.872,184.163,15.86,0.5324,0.2812,-0.2512,73.318,117.035,43.717
+realistic,bangbang,110.946,90.466,18.46,0.3356,0.3426,0.007,82.608,132.898,50.29
+realistic,feedforward,89.566,60.188,32.8,0.5995,0.7731,0.1736,28.578,12.314,-16.264

@@ -85,13 +85,12 @@ def parameter_set(name: str | None = None) -> dict:
     return PARAMETER_SETS[resolved]
 
 
-def check_parameter_set(name: str | None = None) -> dict:
-    """校验参数集的**热惯性联合约束**，返回 UA/τ/θ；不满足则抛 ValueError。
+def describe_parameter_set(name: str | None = None) -> dict:
+    """**不抛错**地描述参数集：返回 UA/τ/θ 与 `meets_inertia_constraint`。
 
-    约束：`C/UA > dt/ln(1/0.9)`（等价 θ = exp(-dt/τ) > 0.9，即"一步后仍保留 >90% 记忆"）。
-    这条不等式就是"模型有没有热惯性"的可断言形式 —— 深度核查的核心指控即 θ≈4e-10。
-
-    默认参数同 `parameter_set`：`None` ⇒ 取**当前**的 `ACTIVE_PARAMETER_SET`（不在定义时求值）。
+    存在的理由（用户任务 ②）：`/api/health` 要如实告诉前端"当前跑的是哪套假设、它有没有热惯性"。
+    `demo` 集**必然不满足** θ>0.9 ⇒ 若健康检查直接调用会抛错的 `check_parameter_set()`，它就会挂 ✗。
+    故把"计算 + 判定"放在这里，`check_parameter_set()` 只负责在违规时抛错 —— **单一真相源**。
     """
     import math
 
@@ -104,13 +103,34 @@ def check_parameter_set(name: str | None = None) -> dict:
     tau = c_air / ua
     theta = math.exp(-TIME_STEP / tau)
     min_tau = TIME_STEP / math.log(1.0 / 0.9)
-    if tau <= min_tau:
+    return {
+        "name": resolved,
+        "UA_w_per_k": ua,
+        "C_j_per_k": c_air,
+        "tau_s": tau,
+        "theta": theta,
+        "min_tau_s": min_tau,
+        "meets_inertia_constraint": tau > min_tau,
+        "source": values["source"],
+    }
+
+
+def check_parameter_set(name: str | None = None) -> dict:
+    """校验参数集的**热惯性联合约束**，返回 UA/τ/θ；不满足则抛 ValueError。
+
+    约束：`C/UA > dt/ln(1/0.9)`（等价 θ = exp(-dt/τ) > 0.9，即"一步后仍保留 >90% 记忆"）。
+    这条不等式就是"模型有没有热惯性"的可断言形式 —— 深度核查的核心指控即 θ≈4e-10。
+
+    默认参数：`None` ⇒ 取**当前**的 `ACTIVE_PARAMETER_SET`（不在定义时求值）。
+    """
+    info = describe_parameter_set(name)
+    if not info["meets_inertia_constraint"]:
         raise ValueError(
-            f"{resolved}: 热惯性不足 —— τ=C/UA={tau:.1f} s 未超过门槛 {min_tau:.1f} s"
-            f"（θ=exp(-dt/τ)={theta:.4f} ≤ 0.9）⇒ 该参数下「什么时候用电」的策略原理上无法体现"
+            f"{info['name']}: 热惯性不足 —— τ=C/UA={info['tau_s']:.1f} s 未超过门槛 "
+            f"{info['min_tau_s']:.1f} s（θ=exp(-dt/τ)={info['theta']:.4f} ≤ 0.9）⇒ "
+            "该参数下「什么时候用电」的策略原理上无法体现"
         )
-    return {"name": resolved, "UA_w_per_k": ua, "C_j_per_k": c_air, "tau_s": tau,
-            "theta": theta, "min_tau_s": min_tau, "source": values["source"]}
+    return info
 
 ALPHA_SOLAR = 0.7     # 太阳辐射得热系数（含玻璃透射+内表面吸收）
 A_WINDOW = 5.0        # 采光窗面积 [m²]

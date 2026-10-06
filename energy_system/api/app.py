@@ -25,6 +25,7 @@ def create_app(
     cors_origins: list[str] | None = None,
     allow_credentials: bool | None = None,
     ai_worker_stats=None,
+    parameter_set_info=None,
 ) -> FastAPI:
     """Create the EcoSentinel API application.
 
@@ -95,6 +96,18 @@ def create_app(
                 stats = None
             if isinstance(stats, dict):
                 payload = payload.model_copy(update={"ai_worker": stats})
+        # 当前物理参数假设（用户任务 ②）：让前端能显示"跑的是哪套假设、它有没有热惯性"。
+        # ★ demo 集**必然不满足** θ>0.9 ⇒ 这里用**不抛错**的 describe_parameter_set()，
+        #   如实报 meets_inertia_constraint=false；既不报错也不隐藏。
+        try:
+            from energy_system.config.settings import describe_parameter_set
+
+            assumptions = parameter_set_info() if parameter_set_info is not None \
+                else describe_parameter_set()
+        except Exception:
+            assumptions = None
+        if isinstance(assumptions, dict):
+            payload = payload.model_copy(update={"assumptions": assumptions})
         return payload
 
     @app.get("/api/simulation/params")

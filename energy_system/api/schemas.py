@@ -80,6 +80,9 @@ class Health(BaseModel):
     # 评审 P1 建议把它暴露出来 —— 否则"建议为什么没被采纳"只能靠翻日志猜
     # （例如 AI_ADVICE_MAX_AGE_S 偏小会导致建议成批过期丢弃）。
     ai_worker: dict | None = None
+    #: 当前物理参数假设（用户任务 ②）：让前端能显示"跑的是哪套假设、它有没有热惯性"。
+    #: `meets_inertia_constraint=False` 是**如实报告**（demo 集必然不满足），不是错误。
+    assumptions: dict | None = None
 
 
 class EnergySummary(BaseModel):

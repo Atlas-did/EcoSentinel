@@ -44,6 +44,18 @@ python scripts/collect_baseline.py --out results/baseline.json
 > 以上数字仅说明“当前模型与参数下仿真可运行、可比较”，**不是**真实建筑实测节能率；
 > 建筑参数（`A_WALL/U_WALL/C_AIR`）目前**为演示级取值、未做标定**，故节能率只能作内部一致性参考。
 
+## 3bis. 两个估计量（2026-10 新增，审计建议 · 评审 §6.4）
+
+| 估计量 | 方法 | 实测值 | 门禁 |
+|---|---|---|---|
+| **配对差值**（现行对外口径） | `python -m energy_system.simulation.compare`：先跑 baseline 3 天、再跑 saving 3 天，取两段总能耗之差 | **17.6%**（199.10 → 164.01 kWh，减碳 20.03 kg） | `tests/contract/test_simulation_baseline.py` |
+| **IPMVP Option C（ASO 交替）** | `aso_experiment.run_aso_experiment()`：**同一段连续仿真内逐日交替**开关策略（"关"=baseline，"开"=报告期），用**室外温度回归**把 baseline 外推到报告期工况 | **19.12% ± 4.21 kWh（95%）**，6 天/seed 42，`baseline = -74.73 + 4.81·T_out`（`R²=0.82`） | `tests/contract/test_aso_experiment.py` |
+
+⚠️ **两者是不同的估计量，不可混用、不可取平均**：配对差值回答"同一工况下开关节能策略差多少"；
+Option C 回答"用回归 baseline 预测报告期工况，实际省了多少"。对外引用时**必须写明用的是哪一个**，
+并都带上"仿真天数 / 未覆盖全工况 / 建筑参数未标定"的口径说明。
+（决策待定：对外主口径用哪个 —— 见 `docs/handoff.md` §4。）
+
 ## 4. 行为不变清单
 
 重构期间，以下行为不得在未获批准算法变更的情况下改变：

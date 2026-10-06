@@ -151,6 +151,13 @@ ecosentinel/
 > above the 2τ≈27.8 s stability limit) and are **retracted**. The savings claim still needs
 > real-hardware, alternating baseline/saving runs before it can be compared with literature values.
 
+> **Two estimators, not one.** The 17.6% above is a **paired** comparison (run baseline 3 days, then saving
+> 3 days). A second, IPMVP-Option-C-style estimator lives in `energy_system/simulation/aso_experiment.py`:
+> it **alternates the strategy inside one continuous run** (ASO) and extrapolates a
+> outdoor-temperature regression baseline to the report periods — for 6 days at seed 42 it reports
+> **19.12% ± 4.21 kWh (95%)**, `R²=0.82`. The two numbers are **different estimators and must not be
+> averaged or mixed**; each must be quoted with its own method and caveat (see `docs/refactor-baseline.md`).
+
 ### 5. Observable Evidence Chain
 
 Every sample written to JSONL includes:

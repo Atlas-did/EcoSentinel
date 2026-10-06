@@ -54,6 +54,10 @@ cd app && npm ci && npm run lint && npm run knip && npm test && npm run build
 2. **CI 物理回归设为 required**：属 GitHub 分支保护设置，需仓库管理员点选。
 3. **舒适度口径**：是否把 TCI 换成 PMV/PPD（ISO 7730，需同时公开 `met/clo/RH/v` 假设），
    以及 `opt_temp/delta_allow` 如何处理。
+4. **节能率主口径用哪个估计量**：现行对外是**配对差值 17.6%**（`compare`），
+   新增 **IPMVP Option C / ASO 交替 19.12% ± 4.21 kWh（95%）**（`aso_experiment`，6 天仿真）。
+   两者是**不同估计量、不可混用或取平均**；若改口径，需同步 README、`docs/refactor-baseline.md`、
+   竞赛材料与 ⑦ 的表述。两条口径各自都有 golden 门禁（改方法会红）。
 
 ## 5. 代理工作约定（摘要，详见 `AGENTS.md`）
 

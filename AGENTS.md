@@ -38,6 +38,11 @@ cd app && npm ci && npm run lint && npm run knip && npm test && npm run build
 >    **29.6% / 29.8% / 29.9%** —— 那些出自热模型显式欧拉**发散**时的无效仿真，**已作废**，
 >    不要在总结/答辩材料里再引用（`tests/contract/test_metrics_registry.py` 会拦住前端回潮）。
 
+延伸阅读：`docs/handoff.md`（交接状态 + 明确没做的事 + 待用户拍板的三件事）、
+`docs/dsh-plugins-guide.md`（队友的 DSH 插件配置与命令）、
+`docs/pmv-ppd-study.md`（ISO 7730 PMV/PPD 实测 + Sinergym 交叉核对）、
+`docs/reference-repos-study.md`（评审 §6 的参考仓库：该套用什么、不该套用什么）。
+
 ## 2. 门禁与"绿"的定义
 
 CI 共 4 个 job，**全绿才算过**（`main` 分支每次 push 都会跑）：

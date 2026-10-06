@@ -138,6 +138,11 @@ def run_compare(duration_days: int = DURATION_DAYS, seed: int = SIM_SEED) -> dic
             "saving_peak_raw_max_kw": peak_save["raw_max_kw"],
             "peak_window_s": peak_base["window_s"],
             "baseline_peak_w_per_m2": peak_base["peak_w_per_m2"],
+            # ── 防抖拦下的切换请求数（F2：硬约束的可计数证据）─────────────────────
+            # 语义见 HysteresisStateMachine.blocked_switch_requests：每个被拦下的请求计 1，
+            # 同一段持续阻塞会累加，因此它同时反映"阻塞了多久"。
+            "baseline_short_cycle_blocks": int(getattr(sim_base.controller, "short_cycle_blocks", 0)),
+            "saving_short_cycle_blocks": int(getattr(sim_save.controller, "short_cycle_blocks", 0)),
             #: 建筑面积只用于**报告归一化**，不进入热模型（settings.FLOOR_AREA_M2，来源为本文件既有假设）
             "area_m2": float(getattr(settings, "FLOOR_AREA_M2", 0.0)) or None,
         },

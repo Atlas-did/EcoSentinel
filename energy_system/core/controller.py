@@ -43,6 +43,12 @@ class HysteresisStateMachine:
         self.min_stop_time_s = float(min_stop_time_s)
         self.running = False
         self.last_switch_time = -99999.0
+        #: 被防抖（min_run / min_stop）**拦下**的切换请求次数。
+        #: 出处：rl-testbed 的 F2 思路（硬约束应可计数，而不是只写在权重里）—— "防抖在 3 天里拦下 N 次
+        #: 切换请求"是一个可验证的可靠性论据。
+        #: ⚠️ 语义：**每个被拦下的请求计 1**；同一段持续阻塞会逐步累加，因此它同时反映"阻塞了多久"，
+        #: 而不是"发生了多少次独立事件"。
+        self.blocked_switch_requests = 0
 
     def sync_from_hardware(self, running: bool, current_time_s: float = 0.0) -> None:
         """Restore state from actual hardware relay status after app restart."""
@@ -114,6 +120,11 @@ class RuleBasedController:
     @property
     def ac_running(self) -> bool:
         return self.ac_state.running
+
+    @property
+    def short_cycle_blocks(self) -> int:
+        """被防抖拦下的切换请求数（见 `HysteresisStateMachine.blocked_switch_requests` 的语义说明）。"""
+        return int(self.ac_state.blocked_switch_requests)
 
     # ── Setpoint lookup ──────────────────────────────────────────────
     def get_temperature_setpoint(self, hour: int) -> float:
@@ -187,20 +198,29 @@ class RuleBasedController:
         lower_limit = T_set - 0.5
 
         # -- AC decision with hysteresis --
+        # 语义与原实现逐位等价，只是把"想切换"与"是否被防抖允许"分开，从而能计数被拦下的请求。
         if self.ac_state.running:
-            # Check if temperature is within comfort zone and we can stop
-            if self.ac_heating and T_in >= T_set and self.ac_state.can_stop(current_time_s):
-                self.ac_state.stop(current_time_s)
-            elif not self.ac_heating and T_in <= T_set and self.ac_state.can_stop(current_time_s):
-                self.ac_state.stop(current_time_s)
+            wants_stop = (self.ac_heating and T_in >= T_set) or (
+                not self.ac_heating and T_in <= T_set
+            )
+            if wants_stop:
+                if self.ac_state.can_stop(current_time_s):
+                    self.ac_state.stop(current_time_s)
+                else:
+                    self.ac_state.blocked_switch_requests += 1
         else:
-            # Check if temperature has drifted beyond deadband and we can start
-            if T_in > upper_limit and self.ac_state.can_start(current_time_s):
-                self.ac_state.start(current_time_s)
-                self.ac_heating = False
-            elif T_in < lower_limit and self.ac_state.can_start(current_time_s):
-                self.ac_state.start(current_time_s)
-                self.ac_heating = True
+            if T_in > upper_limit:
+                if self.ac_state.can_start(current_time_s):
+                    self.ac_state.start(current_time_s)
+                    self.ac_heating = False
+                else:
+                    self.ac_state.blocked_switch_requests += 1
+            elif T_in < lower_limit:
+                if self.ac_state.can_start(current_time_s):
+                    self.ac_state.start(current_time_s)
+                    self.ac_heating = True
+                else:
+                    self.ac_state.blocked_switch_requests += 1
 
         # -- AC power computation --
         power_ac = 0.0

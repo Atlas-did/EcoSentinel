@@ -56,5 +56,39 @@ class TestReportFields(unittest.TestCase):
         )
 
 
+class TestShortCycleCounter(unittest.TestCase):
+    """防抖拦下的切换请求计数（F2：硬约束应可计数，而不是只写在权重里）。
+
+    覆盖边界：验证**计数语义**（被拦下的请求 +1、放行的请求不 +1）与报告字段；不评价策略优劣。
+    """
+
+    def test_blocked_request_is_counted(self):
+        from energy_system.core.controller import RuleBasedController
+
+        ctrl = RuleBasedController(mode="baseline")
+        # 刚停机（last_switch=0）⇒ min_stop 未满 ⇒ 想开也被拦
+        ctrl.ac_state.stop(0.0)
+        ctrl.compute_action(30.0, hour=12, current_time_s=10.0)   # 远高于 24±0.5 ⇒ 想启动
+        self.assertEqual(ctrl.short_cycle_blocks, 1)
+
+    def test_allowed_request_is_not_counted(self):
+        from energy_system.core.controller import RuleBasedController
+
+        ctrl = RuleBasedController(mode="baseline")
+        ctrl.ac_state.stop(0.0)
+        ctrl.compute_action(30.0, hour=12, current_time_s=3600.0)  # min_stop 已满 ⇒ 放行
+        self.assertEqual(ctrl.short_cycle_blocks, 0)
+        self.assertTrue(ctrl.ac_running)
+
+    def test_report_carries_the_counts(self):
+        report = run_compare()["results"]
+        for key in ("baseline_short_cycle_blocks", "saving_short_cycle_blocks"):
+            self.assertIn(key, report)
+            self.assertIsInstance(report[key], int)
+        # 实测：定值 24℃ 的 baseline 与防抖较劲（111 次），而 saving 几乎不动作（0 次）
+        self.assertEqual(report["baseline_short_cycle_blocks"], 111)
+        self.assertEqual(report["saving_short_cycle_blocks"], 0)
+
+
 if __name__ == "__main__":
     unittest.main()

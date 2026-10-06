@@ -141,7 +141,14 @@ ecosentinel/
 
 - **INA219 energy metering** — integrates power over time → Wh/kWh
 - **Baseline vs Saving comparison** — run two labels, dashboard shows savings rate
-- **Comfort score** — temperature/humidity mapped to a unified metric, proving savings aren't from sacrificing comfort
+- **Comfort score** — ⚠️ **retracted claim**: this used to say "proving savings aren't from sacrificing comfort".
+  That is **not supported**. The unified 0–1 score barely moves (baseline 0.493 → saving 0.491), but that is
+  because its temperature term is clamped to 0 outside the 24–28 °C band in *both* modes while the humidity
+  term (~0.956) carries the score. Under the **IPMVP-native metric** — *percentage of time inside the
+  comfort band [23, 26] °C* — the picture reverses: **baseline 41.7 % → saving 20.6 %**, i.e. the saving
+  strategy **halves** the time spent in the comfort band. Both numbers are pinned by
+  `tests/unit/test_comfort_band.py`. Band source: ISO 7730 (PMV ∈ ±0.5 ⇒ ≈23–26.5 °C) and Sinergym
+  (`range_comfort_summer = (23.0, 26.0)`), which agree.
 - **Dual-channel metering** (optional) — measure both load consumption + solar input simultaneously
 
 > ⚠️ **Simulation numbers are not field measurements.** With the current (uncalibrated, demo-grade)

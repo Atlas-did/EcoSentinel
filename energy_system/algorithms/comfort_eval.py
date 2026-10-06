@@ -77,3 +77,36 @@ def evaluate_comfort(temp, humidity, illuminance=None, season="summer", temp_wei
         comfort *= 0.9
 
     return float(max(0.0, min(1.0, comfort)))
+
+
+# ── IPMVP 原生舒适度口径：舒适带内时间占比 ──────────────────────────────────
+#
+# 依据（**队友审计补充，已逐行核实**）：
+#   * IPMVP Core Concepts 对 comfort 的原生定义就是 "percentage of time in comfort band"；
+#   * Sinergym 的"舒适度"不是 0–1 打分，而是**带外惩罚**：
+#       sinergym/utils/rewards.py:163
+#       return [max(temp_range[0] - T, 0, T - temp_range[1]) for T in temp_values]
+#     带内恒为 0、出带才增长 ⇒ 在它那里舒适是**约束**，不是目标
+#     （rewards.py:85 self.W_energy = energy_weight）。
+#
+# 而本仓库的 `calc_TCI` 是 `1 - |T - 26| / 2` —— 它是"打分"，与上面两者**都不同类**：
+# 24 °C 落在 26±2 的带外 ⇒ 得 0 分。因此 `evaluate_comfort` 的均值（如 49.3%）
+# **不该叫"舒适度 %"**，也不能与文献同表比较。对外报告应给本函数的取值。
+COMFORT_BAND_LOW_C = 23.0   # 两个独立来源一致：ISO 7730 数值解(PMV∈±0.5)≈23–26.5 ℃；
+COMFORT_BAND_HIGH_C = 26.0  # Sinergym range_comfort_summer=(23.0,26.0) 与 setpoints_summer 同值。
+
+
+def time_in_band_share(temps, low: float = COMFORT_BAND_LOW_C, high: float = COMFORT_BAND_HIGH_C) -> float:
+    """落在舒适带 `[low, high]` 内的时间占比（IPMVP 原生 comfort 口径）。
+
+    约定：① 边界**包含**（`T == low` 或 `T == high` 计入带内）；
+    ② `low > high` 视为调用错误（抛 `ValueError`），避免"带写反了还静默给 0"；
+    ③ `None` / `NaN` **不计入分母**；一个有效样本都没有时返回 `0.0`（不产生 NaN）。
+    """
+    if low > high:
+        raise ValueError(f"舒适带上下界反了：low={low} > high={high}")
+    valid = [float(t) for t in temps if t is not None and float(t) == float(t)]
+    if not valid:
+        return 0.0
+    inside = sum(1 for t in valid if low <= t <= high)
+    return inside / len(valid)

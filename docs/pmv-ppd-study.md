@@ -51,7 +51,28 @@ PY
   若改口径为 PMV/PPD，应写成"**PMV/PPD（ISO 7730，指定 met/clo/RH/v 假设）**"并列出上述假设，
   **不得**把 `met/clo` 等假设值写成实测值。
 
-## 5. 待用户决策（本文件不代做）
+## 5. 与 Sinergym 基准的交叉核对（外部一致性）
+
+评审建议"参考 Sinergym 的 `OfficesThermostat` 设定值/时间表做外部校准"。我用**稀疏克隆**只取配置与工具代码
+（`git clone --depth 1 --filter=blob:none --sparse` 后 `sparse-checkout set sinergym/config sinergym/utils sinergym/envs`），
+在其中找到**明文的舒适区与设定值**（Sinergym 是同行评审工作中广泛使用的 HVAC 强化学习基准）：
+
+| 来源 | 位置 | 夏季舒适区 / 设定值 |
+|---|---|---|
+| Sinergym 环境注册表 | `sinergym/__init__.py:100-101` | `range_comfort_winter=(20.0, 23.5)`；**`range_comfort_summer=(23.0, 26.0)`** |
+| Sinergym 规则控制器 | `sinergym/utils/controllers.py:44-45` | **`setpoints_summer=(23.0, 26.0)`**；`setpoints_winter=(20.0, 23.5)` |
+| Sinergym 动作空间 | `sinergym/__init__.py:57-58` | 加热/制冷设定值上下界 `low=[15.0, 22.5]`、`high=[22.5, 30.0]` |
+| 本文件 §2（ISO 7730 实算，PMV ∈ ±0.5） | 本仓库 | 约 **23 – 26.5 °C** |
+| **本项目 `calc_TCI`（锚 26 ± 2）** | `energy_system/algorithms/comfort_eval.py` | **24 – 28 °C**（`TCI=0` 在 24 与 28） |
+
+**结论**：两个**互相独立**的公开来源（ISO 7730 数值求解 / Sinergym 基准配置）把夏季舒适区都定在 **23–26 ℃** 一带；
+而本项目的 TCI 可行带是 **24–28 ℃**，**整体偏暖约 1–1.5 ℃**，且它给 24 ℃ 打 0 分、给 28 ℃ 也打 0 分 ——
+这与两个来源都不一致。
+
+⇒ 若采用外部口径，建议把夏季舒适区定在 **23–26 ℃**（与两个来源一致），设定值可选 **25 ℃**（本参数组下 PPD 最低 5.1%）。
+**注意**：这只涉及"舒适度口径与设定值"，**不涉及**建筑参数 `A_WALL/U_WALL/C_AIR` —— 后者仍无公开来源，保持不动。
+
+## 6. 待用户决策（本文件不代做）
 
 1. 是否把 `comfort_eval.calc_TCI` 换成（或并存）PMV/PPD？若换，`opt_temp/delta_allow` 的现行取值如何处理？
 2. 是否把 `pythermalcomfort` 加入依赖？（建议放 `requirements-dashboard.txt` 之外的独立可选依赖，

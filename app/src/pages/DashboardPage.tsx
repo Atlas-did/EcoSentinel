@@ -43,6 +43,13 @@ export default function DashboardPage() {
   // 界面不能展示没有数据来源的状态）。没有任何采样的字段一律视为离线。
   const hasData = (value: unknown): boolean => value != null;
 
+  // 继电器状态也必须来自**真实快照**（此前写死 ON/OFF）；无数据时显示 —，不猜
+  const relayState = (index: number): string => {
+    const value = latestSnapshot?.relays?.[index];
+    if (value === undefined || value === null) return '—';
+    return value ? 'ON' : 'OFF';
+  };
+
   const targetTemp = TARGET_TEMP_C;
 
   return (
@@ -447,11 +454,19 @@ export default function DashboardPage() {
           </div>
           <div className="flex justify-between text-xs">
             <span className="text-slate-500 font-mono">继电器1</span>
-            <span className="text-emerald-400 font-mono">ON</span>
+            <span
+              className={`font-mono ${relayState(0) === 'ON' ? 'text-emerald-400' : 'text-slate-600'}`}
+            >
+              {relayState(0)}
+            </span>
           </div>
           <div className="flex justify-between text-xs">
             <span className="text-slate-500 font-mono">继电器2</span>
-            <span className="text-slate-600 font-mono">OFF</span>
+            <span
+              className={`font-mono ${relayState(1) === 'ON' ? 'text-emerald-400' : 'text-slate-600'}`}
+            >
+              {relayState(1)}
+            </span>
           </div>
           <div className="flex justify-between text-xs">
             <span className="text-slate-500 font-mono">窗帘</span>

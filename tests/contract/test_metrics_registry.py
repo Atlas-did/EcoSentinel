@@ -290,6 +290,18 @@ class TestFrontendSingleSource(unittest.TestCase):
             callers, ["app/src/App.tsx"], f"轮询启停只应出现在布局根，实际出现在：{callers}"
         )
 
+    def test_relay_state_is_not_hardcoded(self):
+        """继电器状态必须来自 `latestSnapshot.relays`（审计点名：DashboardPage 写死 ON/OFF）。
+
+        覆盖边界：这是**源码字面量**扫描（找 `font-mono">ON<` 这类写死形态），不是渲染断言；
+        渲染层仍由前端测试与人工核对负责。
+        """
+        dash = (PROJECT_ROOT / "app/src/pages/DashboardPage.tsx").read_text(encoding="utf-8")
+        for forbidden in ('font-mono">ON<', 'font-mono">OFF<'):
+            self.assertNotIn(forbidden, dash, f"DashboardPage 又把继电器状态写死了：{forbidden}")
+        self.assertIn("relays", dash, "继电器状态应绑定 latestSnapshot.relays")
+        self.assertIn("relayState", dash, "继电器状态应经 relayState() 读取真实快照")
+
     def test_no_fabricated_mode_badges(self):
         """系统模式/安全锁不得用固定字样冒充真实状态（评审 §1.3 第 3 条）。
 

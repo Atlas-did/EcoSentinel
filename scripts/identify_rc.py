@@ -109,6 +109,15 @@ def fit_rc(rows: list[dict], dt: float | None = None) -> dict:
 
     ua = a / b
     c = 1.0 / b
+    # ★ 正性守卫（队友审计指出：本脚本原先没有这条 ⇒ 理论上会给出负热容/负热阻）
+    # rcmodel 用 logit 把参数约束在正数域（src/rcmodel/tools/helper_functions.py:105）；
+    # 本脚本对"2 个标量"的场景选择更简单的等价做法：**直接拒答**，不返回非物理值。
+    if not (ua > 0.0) or not (c > 0.0):
+        raise ValueError(
+            "拟合出**非正**的物理参数（UA={:.4g} W/K，C={:.4g} J/K）⇒ 拒答："
+            "热阻/热容必须为正。常见原因：符号约定反了（制冷/得热的正负号）、数据含未建模的"
+            "热源或开窗、激励不足。".format(ua, c)
+        )
     residuals = [p["y"] - (a * p["x"] + b * p["z"]) for p in pairs]
     ss_res = sum(r * r for r in residuals)
     ss_tot = sum((p["y"] - my) ** 2 for p in pairs)

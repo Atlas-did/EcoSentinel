@@ -63,6 +63,23 @@ class TestIdentifyRc(unittest.TestCase):
             f"拒答消息应说明是共线/退化，实为：{ctx.exception}",
         )
 
+    def test_non_positive_solution_is_rejected(self):
+        """★ 队友审计指出的缺口：原实现只有 `|b|<1e-12` 的退化守卫 ⇒ 负热容会**通过**。
+
+        这里直接构造"ΔT 随 Q 增大而下降"的数据（等价于负热容），要求脚本**拒答**而非返回非物理值。
+        rcmodel 用 logit 把参数约束在正数域（helper_functions.py:105）；本脚本用显式拒答等价实现。
+        """
+        rows = []
+        t_in = 24.0
+        for k in range(400):
+            t_out = 30.0 + 2.0 * math.sin(k / 7.0)          # 室外有变化 ⇒ 不与 Q 共线
+            q = 300.0 + 200.0 * math.sin(k / 5.0 + 1.0)
+            rows.append({"time_s": k * 10.0, "T_in": t_in, "T_out": t_out, "Q_w": q})
+            t_in += 1e-3 * (t_out - t_in) * 10.0 - 1e-5 * q * 10.0   # 人为的"负热容"响应
+        with self.assertRaises(ValueError) as ctx:
+            fit_rc(rows, dt=10.0)
+        self.assertIn("非正", str(ctx.exception))
+
     def test_too_few_rows_is_reported_as_input_error(self):
         import tempfile
         from pathlib import Path

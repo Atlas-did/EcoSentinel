@@ -31,8 +31,10 @@ A closed-loop edge-computing system for **real-time environmental monitoring** a
 ### 3-command demo (simulation mode — no hardware needed)
 
 ```bash
-# 1. Install Python dependencies
+# 1. Install Python dependencies (core: API / firmware tooling / tests)
 pip install -r requirements.txt
+# ...and, only if you want the Streamlit dashboard below (adds streamlit/pandas/matplotlib):
+#     pip install -r requirements-dashboard.txt
 
 # 2. Run simulation comparison (baseline vs energy-saving)
 python -m energy_system.simulation.compare

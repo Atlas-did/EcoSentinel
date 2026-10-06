@@ -1,9 +1,9 @@
-# Core
+# Core（API / 固件工具 / 测试所需）
+# 仪表盘专用依赖（streamlit / pandas / matplotlib）已拆到 requirements-dashboard.txt ——
+# 评审 §8 第 5 步。核心包 energy_system/ 对它们零引用，由
+# tests/contract/test_dependency_split.py 守卫。
 fastapi>=0.100.0
 uvicorn>=0.23.0
-streamlit>=1.25.0
-pandas>=2.0.0
-matplotlib>=3.7.0
 pyyaml>=6.0
 pyserial>=3.5
 openai>=1.0.0

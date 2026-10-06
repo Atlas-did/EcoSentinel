@@ -1,0 +1,12 @@
+# 仪表盘（Streamlit）依赖 —— 评审 §8 第 5 步建议单独拆分。
+#
+# 为什么拆：`streamlit / pandas / matplotlib` **只被 4 个 Streamlit 视图文件**引用
+# （ai_pool.py / energy_view.py / realtime_view.py / simulation_view.py），
+# 而核心包 `energy_system/` 对它们**零引用**（由 tests/contract/test_dependency_split.py 守卫）。
+# 只跑 API / 固件工具 / 测试的人，装 requirements.txt 就够了，不必拖 200MB+ 的 Streamlit 栈。
+#
+# 用法：pip install -r requirements-dashboard.txt
+-r requirements.txt
+streamlit>=1.25.0
+pandas>=2.0.0
+matplotlib>=3.7.0

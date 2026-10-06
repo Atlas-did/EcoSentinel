@@ -14,7 +14,7 @@
 | 4 | **P2 · M1 只覆盖 9 包 + 正则盲区** | ✅ 成立（缺 `resilience/hardware/persistence/power`；正则只抓字面量、抓不到裸标识符） | ✅ **已补齐 + 写明盲区** | `tests/contract/test_metrics_registry.py` 的 `SCAN_PACKAGES` 与新增注释块，提交 `a91d82c` | ✅ 往 `hardware/serial_bridge.py` 注入 `'tempreature'` ⇒ 点名报红（证明新包确实被扫描） |
 | 5 | **P2 · ⑦ 参数标定/学习"完全没做"** | ⚠️ **部分成立**：研究**已做并入库**（`docs/pmv-ppd-study.md`、`docs/reference-repos-study.md`，提交 `8d62c67`/`cbc9012`，且 `handoff.md` 明写"参数未标定"）；**参数标定确实未做** | 🔒 **等你同学几天的实测数据** | 口径与验收脚本已就绪（`scripts/firmware_acceptance.py` + PMV/PPD 实测表）；**绝不臆造数字** | —（等数据；届时用实测序列拟合 R/C，并补 golden） |
 | 6 | **P3 · "全绿"积压** | ✅ 成立（多轮报告曾挂"在跑/待核"却在同段写"全绿"） | ✅ **已改纪律** | 本表顶部的纪律声明；`docs/handoff.md` 同步 | —（流程项） |
-| 7 | **P3 · knip 零豁免但配置在别处** | ✅ 成立（无 `knip.json`；`app/package.json` 里也**没有** `knip` 段 ⇒ knip 跑默认规则） | ⏸ **决定不新建 `knip.json`**，改为文档化 | 理由：**任何** `knip.json` 都会**覆盖默认值**，可能把"零豁免"悄悄削弱/掏空 ⇒ 不接受"为可读性改坏门禁"；如要做，先用 `knip --include` 等方法逐条比对生效规则再落盘 | —（决策项） |
+| 7 | **P3 · knip 零豁免但配置在别处** | ✅ 成立（原本无 `knip.json`；`app/package.json` 里也**没有** `knip` 段 ⇒ knip 跑默认规则） | ✅ **已显式化并证明行为等价** | 新增 `app/knip.json`：把 8 类问题（`files/dependencies/unlisted/binaries/unresolved/exports/types/duplicates`）**显式钉成 `"error"`**（规则名取自 `npx knip --help` 的真实输出）；**不碰 `entry`/`project`** ⇒ 发现逻辑不变 | ✅ 用**审计自己那套探针**验证等价：加配置后 `knip` exit 0 ✓ → 塞 `src/__dead_probe.ts` ⇒ **exit 1 且指名** `src/__dead_probe.ts` ✓（与其实测一致）→ 移除 ⇒ exit 0 ✓；同时 test/lint/build 仍全 0 ✓ |
 
 ## 2. 审计做的 8 处变异（我接受，且都不是我自封的）
 

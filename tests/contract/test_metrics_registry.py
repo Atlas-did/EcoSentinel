@@ -407,7 +407,16 @@ class TestReadSitesUseRegisteredKeys(unittest.TestCase):
     `humidty`）。既不需要允许清单，又恰好命中真实风险（笔误导致静默读到 None）。
     """
 
-    SCAN_PACKAGES = ["ai", "algorithms", "api", "application", "core", "domain", "simulation", "utils", "config"]
+    SCAN_PACKAGES = [
+        "ai", "algorithms", "api", "application", "core", "domain", "simulation", "utils", "config",
+        # 2026-10 审计指出覆盖面不足，补齐这四个包：
+        "resilience", "hardware", "persistence", "power",
+    ]
+    #: ⚠️ **已知盲区（审计指出，属实）**：下面这条正则只抓
+    #: `.get("key")` / `["key"]` 两种**字面量**读取形式，**抓不到裸标识符读取**
+    #: （如 `row = data["temperature"]` 之后再 `row` 参与运算、或循环变量）。
+    #: 因此本门禁的定位是"**指标名笔误**检测"，**不是**"覆盖全部读取点"——
+    #: 报告里不得再声称覆盖全部读取位置。
     READ_KEY = re.compile(r"""(?:\.get\(\s*|\[\s*)['"]([a-z][a-z0-9_]*)['"]""")
     #: 相似度阈值：0.85 能抓住单字符增删改，又不会把无关键拉进来（实测无噪声）
     CUTOFF = 0.85

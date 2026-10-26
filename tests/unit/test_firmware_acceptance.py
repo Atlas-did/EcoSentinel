@@ -118,3 +118,31 @@ def test_exit_codes_are_graded_and_distinct():
         "bh1750", "sgp30", "ina219", "solar_ina219",
         "relay", "buzzer", "stepper",
     }
+
+
+def test_optional_sensor_libs_have_explicit_enable_switches():
+    """可选库不能只靠 __has_include —— 否则装了也永远编不进去。
+
+    arduino-cli 只按预处理输出里出现的 #include 去 ResolveLibrary。库已安装
+    时 __has_include 首轮仍为假 ⇒ #include 不出现 ⇒ 该库永远不被解析。
+    实测：DHT/SGP30 库装好后编译，verbose 日志里从未出现两者的 ResolveLibrary。
+
+    故每个可选库都必须有显式编译开关，且保留"不传开关时降级"的既有行为。
+    """
+    text = (FIRMWARE_DIR / "config.h").read_text(encoding="utf-8")
+    for macro, header in (
+        ("ECOSENTINEL_ENABLE_DHT", "DHT.h"),
+        ("ECOSENTINEL_ENABLE_SGP30", "Adafruit_SGP30.h"),
+    ):
+        assert macro in text, (
+            "%s 缺少显式开关 %s：库已安装时该传感器仍不会被编译进去" % (header, macro)
+        )
+        # 开关必须与 __has_include 并列为"或"关系，保证不传开关时行为不变
+        pattern = "defined(%s) || __has_include(<%s>)" % (macro, header)
+        assert pattern in text, (
+            "%s 的保护写法必须是 `%s`（缺 BASELINE 降级会破坏 CI 路径）"
+            % (header, pattern)
+        )
+        # 降级分支必须存在
+        assert "#define HAVE_%s 0" % macro.rsplit("_", 1)[-1] in text
+

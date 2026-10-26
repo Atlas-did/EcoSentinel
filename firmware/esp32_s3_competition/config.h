@@ -16,14 +16,27 @@
   #define HAVE_ESP_SYSTEM 0
 #endif
 
-#if __has_include(<DHT.h>)
+// 可选传感器库的开关
+// ─────────────────────────────────────────────────────────────────────
+// 为什么不能只写 __has_include：arduino-cli 只根据**预处理输出里真正出现的
+// #include** 去解析/编译库。库缺失时条件为假、#include 不出现，这合理；
+// 但库**已安装**时第一遍求值同样是假，#include 依然不出现 ⇒ 该库永远不会
+// 被 ResolveLibrary 捕获，形成"装了也永远编不进去"的死锁。
+// 实测证据：装好 DHT / SGP30 库后编译，verbose 日志里只有 Wire/SPI/WiFi/
+// Networking/PubSubClient，从未出现 DHT.h / Adafruit_SGP30.h。
+//
+// 解法：给每个可选库一个显式编译开关，使 #include 在启用时真正进入预处理输出。
+// 不传开关时行为与原先一致（编译期自动降级），CI 即走此路径。
+//   arduino-cli compile --fqbn ... \
+//     --build-property "compiler.cpp.extra_flags=-DECOSENTINEL_ENABLE_DHT=1 -DECOSENTINEL_ENABLE_SGP30=1"
+#if defined(ECOSENTINEL_ENABLE_DHT) || __has_include(<DHT.h>)
   #include <DHT.h>
   #define HAVE_DHT 1
 #else
   #define HAVE_DHT 0
 #endif
 
-#if __has_include(<Adafruit_SGP30.h>)
+#if defined(ECOSENTINEL_ENABLE_SGP30) || __has_include(<Adafruit_SGP30.h>)
   #include <Adafruit_SGP30.h>
   #define HAVE_SGP30 1
 #else

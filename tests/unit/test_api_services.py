@@ -48,7 +48,12 @@ class TestApiServices(unittest.TestCase):
         self.assertEqual(snap.relays, [1, 0])
         self.assertEqual(snap.errors, ["bus_warn"])
 
-    def test_chart_scales_comfort_to_percent(self):
+    def test_chart_keeps_comfort_ratio_unit(self):
+        """comfort_score 在 snapshot 与 chart 两处必须是同一量纲 0..1。
+
+        此前 chart 把它乘 100（0.78 → 78.0），而 snapshot 原样返回，
+        同一个字段两套量纲，前端只能猜（D4）。百分数只在渲染层换算。
+        """
         recent = (datetime.now() - timedelta(minutes=1)).isoformat()
         self._hardware([json.dumps({
             "timestamp": recent,
@@ -57,7 +62,9 @@ class TestApiServices(unittest.TestCase):
         })])
         points = self.svc.chart(range_="1h")
         self.assertEqual(points[0].temp, 24.0)
-        self.assertEqual(points[0].comfort_score, 78.0)
+        self.assertEqual(points[0].comfort_score, 0.78)
+        # 与 /api/snapshot 同源同量纲
+        self.assertEqual(self.svc.snapshot().comfort_score, 0.78)
 
     def test_energy_summary_uses_daily_files(self):
         today = date.today().isoformat()

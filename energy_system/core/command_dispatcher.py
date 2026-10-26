@@ -21,6 +21,25 @@ from energy_system.utils.helpers import pick
 
 logger = logging.getLogger("CommandDispatcher")
 
+
+def _command_ok(result: Any) -> bool:
+    """Tell whether a ``send_command`` result means "the device accepted it".
+
+    The serial bridge returns a dict with ``ok`` (see
+    ``hardware/serial_bridge.py:305``). Only a truthy ``ok`` may advance the
+    cached relay state — before this guard the dispatcher advanced
+    ``_last_relay*`` unconditionally, so a failed write was cached as success
+    and never retried (D2). Callers that inject a stub bridge returning
+    ``None``/``True`` keep working, since anything that is not an explicit
+    failure counts as success.
+    """
+    if isinstance(result, dict):
+        return bool(result.get("ok", True))
+    if result is None:
+        return True
+    return bool(result)
+
+
 # Legacy rejection reasons returned by validate_ai_commands for backward
 # compatibility. New callers should use validate_commands() for the richer,
 # machine-readable reason codes.
@@ -131,14 +150,14 @@ class RuleActuationController:
 
         changed = False
         if self._last_relay1 is None or relay1 != self._last_relay1:
-            bridge.send_command(f"RELAY 1 {relay1}")
-            self._last_relay1 = relay1
-            changed = True
+            if _command_ok(bridge.send_command(f"RELAY 1 {relay1}")):
+                self._last_relay1 = relay1
+                changed = True
 
         if self._last_relay2 is None or relay2 != self._last_relay2:
-            bridge.send_command(f"RELAY 2 {relay2}")
-            self._last_relay2 = relay2
-            changed = True
+            if _command_ok(bridge.send_command(f"RELAY 2 {relay2}")):
+                self._last_relay2 = relay2
+                changed = True
 
         if changed:
             self._last_actuate_mono = now_mono

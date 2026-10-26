@@ -9,6 +9,7 @@ row count when a time window is requested.
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -36,8 +37,22 @@ class JsonlTelemetryRepository:
         self.log_dir = Path(log_dir)
         self.run_label = run_label
 
+    #: Labels become part of a filename, and they arrive straight from the HTTP
+    #: query string (?label=...). Before this allow-list, ``label="../../etc/x"``
+    #: escaped ``log_dir`` (D9). Keep it permissive enough for the labels we
+    #: actually use ("saving", "baseline", "run-01") but never for separators.
+    _LABEL_RE = re.compile(r"^[A-Za-z0-9_.-]{1,64}$")
+
+    @classmethod
+    def _safe_label(cls, label: str) -> str:
+        if not isinstance(label, str) or not cls._LABEL_RE.match(label):
+            raise ValueError(f"非法 run_label：{label!r}（只允许字母/数字/_.-，≤64 字符）")
+        if ".." in label:
+            raise ValueError(f"非法 run_label：{label!r}（不允许 '..'）")
+        return label
+
     def _path(self, label: str | None, kind: str = "hardware") -> Path:
-        label = label or self.run_label
+        label = self._safe_label(label or self.run_label)
         return self.log_dir / f"{kind}_{label}.jsonl"
 
     def has_log(self, label: str | None = None, kind: str = "hardware") -> bool:

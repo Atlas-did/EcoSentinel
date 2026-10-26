@@ -54,7 +54,7 @@ class ChartPoint(BaseModel):
     eco2: float | None = None
     power_w: float | None = None
     solar_power_w: float | None = None
-    comfort_score: float | None = None  # 0..100 percent
+    comfort_score: float | None = None  # 0..1 ratio（与 Snapshot 一致；百分数只在 UI 渲染层换算）
 
 
 class SensorHealth(BaseModel):
@@ -72,9 +72,11 @@ class Health(BaseModel):
     last_heartbeat: str | None = None
     sampling_rate_hz: float | None = None
     sensors_online: SensorHealth = Field(default_factory=SensorHealth)
-    retry_count: int = 0
+    # D6：无来源时如实返回 null，而不是伪造 0 / False。
+    # 「未知」与「真的是 0 次重试」是两件事，混用会让看板误判健康状态。
+    retry_count: int | None = None
     self_healing_enabled: bool = False
-    stale_detected: bool = False
+    stale_detected: bool | None = None
     corrupt_records: int = 0  # additive: number of unreadable JSONL lines
     # 可加字段：AI 工作线程计数（submitted/completed/errors/dropped_* 等）。
     # 评审 P1 建议把它暴露出来 —— 否则"建议为什么没被采纳"只能靠翻日志猜

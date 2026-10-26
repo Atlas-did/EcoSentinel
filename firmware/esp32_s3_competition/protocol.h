@@ -326,10 +326,25 @@ static void handleCommand(String line) {
       replyError("BAD_RELAY_CMD");
       return;
     }
-
-    int relayNum = line.substring(first + 1, second).toInt();
-    int state = line.substring(second + 1).toInt();
-    setRelay(relayNum, state != 0);
+    // D10：toInt() 会把 "1x" / "abc" 静默截成 1 / 0，等于把错误命令当合法执行。
+    // 先校验两段都是纯数字，再解析；序号限 1..4，状态限 0/1。
+    String numStr = line.substring(first + 1, second);
+    String stateStr = line.substring(second + 1);
+    numStr.trim();
+    stateStr.trim();
+    for (unsigned int i = 0; i < numStr.length(); i++) {
+      if (!isDigit(numStr[i])) { replyError("BAD_RELAY_CMD"); return; }
+    }
+    for (unsigned int i = 0; i < stateStr.length(); i++) {
+      if (!isDigit(stateStr[i])) { replyError("BAD_RELAY_CMD"); return; }
+    }
+    long relayNum = numStr.toInt();
+    long state = stateStr.toInt();
+    if (relayNum < 1 || relayNum > 4 || state > 1) {
+      replyError("BAD_RELAY_CMD");
+      return;
+    }
+    setRelay((int)relayNum, state != 0);
     replyOk("RELAY_SET");
     return;
   }
@@ -347,34 +362,51 @@ static void handleCommand(String line) {
   }
 
   if (line.startsWith("CURTAIN")) {
-    if (line.indexOf("OPEN") > 0) {
+    // D10：原先用 indexOf("CAL") > 0 判定，会被 "CURTAIN SCALE 500" 之类的
+    // 子串命中（SCALE 里含 CAL），导致误把 500 当成标定步数。改为按空格切出
+    // 第二个 token 做**精确**比较，并对参数个数与取值范围做校验。
+    String rest = line.substring(strlen("CURTAIN"));
+    rest.trim();
+    int sp = rest.indexOf(' ');
+    String verb = (sp < 0) ? rest : rest.substring(0, sp);
+    String arg  = (sp < 0) ? String("") : rest.substring(sp + 1);
+    arg.trim();
+    verb.toUpperCase();
+
+    if (verb == "OPEN" && arg.length() == 0) {
       curtainTarget = CurtainTarget::Open;
       replyOk("CURTAIN_OPEN");
       return;
     }
-    if (line.indexOf("CLOSE") > 0) {
+    if (verb == "CLOSE" && arg.length() == 0) {
       curtainTarget = CurtainTarget::Close;
       replyOk("CURTAIN_CLOSE");
       return;
     }
-    if (line.indexOf("STOP") > 0) {
+    if (verb == "STOP" && arg.length() == 0) {
       curtainTarget = CurtainTarget::Stop;
       stepperDisable();
       replyOk("CURTAIN_STOP");
       return;
     }
-    if (line.indexOf("CAL") > 0) {
-      int lastSpace = line.lastIndexOf(' ');
-      if (lastSpace < 0) {
+    if (verb == "CAL") {
+      if (arg.length() == 0 || arg.indexOf(' ') >= 0) {
         replyError("BAD_CURTAIN_CAL");
         return;
       }
-      int32_t maxSteps = (int32_t)line.substring(lastSpace + 1).toInt();
-      if (maxSteps < 100) {
+      // 只接受纯数字，避免 "12abc" 被 toInt() 静默截成 12
+      for (unsigned int i = 0; i < arg.length(); i++) {
+        if (!isDigit(arg[i])) {
+          replyError("BAD_CURTAIN_CAL");
+          return;
+        }
+      }
+      long maxSteps = arg.toInt();
+      if (maxSteps < 100 || maxSteps > 100000) {
         replyError("CURTAIN_CAL_TOO_SMALL");
         return;
       }
-      curtainMaxSteps = maxSteps;
+      curtainMaxSteps = (int32_t)maxSteps;
       if (curtainPositionSteps > curtainMaxSteps) curtainPositionSteps = curtainMaxSteps;
       replyOk("CURTAIN_CAL_OK");
       return;

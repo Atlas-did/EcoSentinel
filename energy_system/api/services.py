@@ -90,7 +90,10 @@ class ApiServices:
         rows = result.rows[-CHART_MAX_POINTS:]
         points: list[ChartPoint] = []
         for row in rows:
-            comfort = _f(row, "comfort_score")
+            # D4：comfort_score 的权威量纲是 0..1（见 domain/telemetry.py 的
+            # MetricSpec 与 metrics.py 的注册表）。此前这里乘了 100，
+            # 导致同一字段在 /api/snapshot（0..1）与 /api/chart（0..100）
+            # 两套量纲，前端必须猜。统一为 0..1，百分数只在渲染层做。
             points.append(ChartPoint(
                 time=row.get("timestamp"),
                 temp=_f(row, "temperature"),
@@ -99,7 +102,7 @@ class ApiServices:
                 eco2=_f(row, "eco2"),
                 power_w=_f(row, "power_w"),
                 solar_power_w=_f(row, "solar_power_w"),
-                comfort_score=(comfort * 100.0 if comfort is not None else None),
+                comfort_score=_f(row, "comfort_score"),
             ))
         return points
 
@@ -154,9 +157,12 @@ class ApiServices:
         sampling_rate = self._compute_sampling_rate(result.rows)
 
         return Health(
-            serial_connected=bool(last),
+            # D6: 以下四个字段此前把"没有数据"伪造成具体值，会让看板以为串口
+            # 正常、重试在跑、心跳新鲜。改为无来源时如实返回 None / False。
+            serial_connected=bool(last) and last.get("source") != "mock",
             last_heartbeat=(last or {}).get("timestamp"),
-            sampling_rate_hz=sampling_rate if sampling_rate is not None else 1.0,
+            # 采样率算不出来就不报（此前兜底 1.0，等于凭空声称 1Hz）
+            sampling_rate_hz=sampling_rate,
             sensors_online=SensorHealth(
                 temperature=last is not None and last.get("temperature") is not None,
                 humidity=last is not None and last.get("humidity") is not None,
@@ -165,11 +171,14 @@ class ApiServices:
                 power=last is not None and last.get("power_w") is not None,
                 solar=last is not None and last.get("solar_power_w") is not None,
             ),
-            retry_count=0,
+            # 重试计数目前没有真实来源：返回 None 表示"未知"，而不是假装是 0
+            retry_count=None,
             self_healing_enabled=bool(self.cfg.self_healing.enabled),
-            stale_detected=bool((last or {}).get("safe_mode", False)),
+            # stale 不能挪用 safe_mode：两者含义不同
+            stale_detected=None,
             corrupt_records=result.corrupt_records,
         )
+
 
     @staticmethod
     def _compute_sampling_rate(rows: list[dict]) -> float | None:

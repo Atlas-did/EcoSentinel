@@ -497,7 +497,7 @@ export default function DashboardPage() {
                   stroke="#8b5cf6"
                   strokeWidth="8"
                   strokeLinecap="round"
-                  strokeDasharray={`${(latestSnapshot?.comfort_score ?? 0) / 100 * 251}, 251`}
+                  strokeDasharray={`${(latestSnapshot?.comfort_score ?? 0) * 251}, 251`}
                   initial={{ strokeDashoffset: 251 }}
                   animate={{ strokeDashoffset: 0 }}
                   transition={{ duration: 1.5, delay: 0.3 }}
@@ -505,7 +505,9 @@ export default function DashboardPage() {
               </svg>
               <div className="absolute inset-0 flex items-center justify-center">
                 <span className="text-lg font-bold text-slate-100 font-mono">
-                  {latestSnapshot?.comfort_score?.toFixed(0) ?? '--'}
+                  {latestSnapshot?.comfort_score != null
+                    ? (latestSnapshot.comfort_score * 100).toFixed(0)
+                    : '--'}
                 </span>
               </div>
             </div>

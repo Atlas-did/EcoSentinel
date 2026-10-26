@@ -20,6 +20,15 @@ const char* MQTT_BROKER   = "broker.emqx.io";   // 免费公共 Broker
 const int   MQTT_PORT     = 1883;
 const char* NODE_ID       = "classroom_demo";   // 本节点唯一标识
 
+// D10：公共 Broker 上任何人只要知道 `<node>/cmd` 就能下发指令。
+// 命令帧必须以共享口令开头："<TOKEN> 命令内容"，否则整帧丢弃。
+// 口令留空 = 不启用鉴权（仅限本机/受信网络演示，默认空以免影响既有演示）。
+// 生产环境必须填，且令牌不要入库（改从 NVS / 编译期 -D 传入）。
+#ifndef MQTT_CMD_TOKEN
+#define MQTT_CMD_TOKEN ""
+#endif
+static const char* MQTT_CMD_SECRET = MQTT_CMD_TOKEN;
+
 String mqttTopicSensors;
 String mqttTopicCmd;
 
@@ -47,10 +56,34 @@ static void setupWiFi() {
 }
 
 static void mqttCallback(char* topic, byte* payload, unsigned int length) {
+  // 帧长上限：readStringUntil 无上限会耗尽堆（配合 protocol.h 的同类问题）。
+  if (length == 0 || length > 256) {
+    Serial.println("MQTT CMD rejected: bad length");
+    return;
+  }
   String cmd = "";
   for (unsigned int i = 0; i < length; i++) {
     cmd += (char)payload[i];
   }
+  cmd.trim();
+
+  // D10：只接受本节点 cmd topic，别的 topic 一律忽略。
+  if (mqttTopicCmd.length() > 0 && String(topic) != mqttTopicCmd) {
+    Serial.println("MQTT CMD rejected: wrong topic");
+    return;
+  }
+
+  // D10：共享口令校验。口令非空时，帧必须以 "<TOKEN> " 开头。
+  String secret = String(MQTT_CMD_SECRET);
+  if (secret.length() > 0) {
+    if (!cmd.startsWith(secret + " ")) {
+      Serial.println("MQTT CMD rejected: missing token");
+      return;
+    }
+    cmd = cmd.substring(secret.length() + 1);
+    cmd.trim();
+  }
+
   Serial.print("MQTT CMD: ");
   Serial.println(cmd);
   handleCommand(cmd);

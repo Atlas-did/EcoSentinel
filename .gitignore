@@ -55,3 +55,14 @@ EcoSentinel_*
 *.zip
 *.tar.gz
 *.7z
+
+# ── Unrelated / bulky binaries kept out of the repo ──
+# 汉化 PTCG 卡牌扫描件：与 EcoSentinel 无关，单份 42MB，禁止入库
+PTCG-Arena_*.pdf
+# 本地临时构建目录（申报材料打包中间产物）
+_pack/
+_pack_build/
+# 第三方软著申请表格模板（非本项目产物，且 .doc/.docx 为重复副本）
+参考-软著设计说明书.doc*
+新系统软著采集表模板-新系统.doc*
+
